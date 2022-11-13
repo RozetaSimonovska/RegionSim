@@ -1,0 +1,13 @@
+#' Population of German municipalities data
+#'
+#' @docType data
+#'
+#' @usage
+#' data(sf_POPULATION)
+#'
+#' @format
+#' \emph{sf_POPULATION} - vector of municipality population
+#'
+#' @keywords data
+#'
+"sf_POPULATION"

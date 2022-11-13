@@ -2,25 +2,34 @@
 % Please edit documentation in R/asgn_nbs.R
 \name{asgn_nbs}
 \alias{asgn_nbs}
-\title{Assign neigbours}
+\title{Assign neigbors}
 \usage{
 asgn_nbs(neigbs, cen_dist, k)
 }
 \arguments{
-\item{neigbs}{neighbours list}
+\item{neigbs}{neighbors list}
 
 \item{cen_dist}{centroid distance matrix}
 
-\item{k}{number of nearest neigbours to be assigned}
+\item{k}{number of nearest neigbors to be assigned}
 }
 \value{
-a list of neighbours
+a list of neighbors
 }
 \description{
-Assign k neigbours for regions without neighbours to a neighbours list, based on centroid distance
+Assign k neigbors for regions without neighbors to a neighbors list, based on centroid distance
 }
-\references{
-Simonovska R., & Tafenau E. (2021). Varying size and shape of spatial units: The MAUP in the case of Germany
+\examples{
+library("sf")
+ger <- st_read(system.file(dsn = "shape/gemeinde.shp", package = "RegionSim"))
+cen_sf <- st_centroid(ger$geometry,of_largest_polygon = TRUE)
+cen_d <- st_distance(cen_sf)
+library("units")
+mun_cen_dist <- drop_units(cen_d)/1000
+library("spdep")
+neigbs0 <- poly2nb(ger)
+neigbs <- asgn_nbs(neigbs = neigbs0, cen_dist = mun_cen_dist, k = 2)
+
 }
 \seealso{
 \code{\link{AggReg}}

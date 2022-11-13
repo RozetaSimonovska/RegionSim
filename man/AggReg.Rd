@@ -6,17 +6,20 @@
 \title{Aggregate regions}
 \usage{
 Aggreg(
-  sf_pol,
+  sf_pol = NULL,
   n,
   nseed = 12345,
   popvec,
   areavec,
   minpop = NULL,
   maxpop = NULL,
-  neigbs,
-  cen_dist,
+  neigbs = NULL,
+  cen_dist = NULL,
   n_reg = NULL,
-  outpv = FALSE
+  outpv = FALSE,
+  nopoprist = FALSE,
+  onebyone = TRUE,
+  repuntilmin = FALSE
 )
 }
 \arguments{
@@ -26,60 +29,48 @@ Aggreg(
 
 \item{nseed}{random seed number}
 
-\item{popvec}{population vector containig information for the starting m regional units}
+\item{popvec}{population vector containing information for the starting m regional units}
 
-\item{areavec}{area vector containig information for the starting m regional units}
+\item{areavec}{area vector containing information for the starting m regional units}
 
 \item{minpop}{minimum population of the newly created regions. If missing, then set (total population/n)*0.75.}
 
 \item{maxpop}{maximum population of the newly created regions. If missing, then set (total population/n)*1.25.}
 
-\item{neigbs}{neighbours list}
+\item{neigbs}{neighbors list}
 
 \item{cen_dist}{centroid distances}
 
-\item{n_reg}{vector of indeces for the regions which will be used to choose the starting n points, default NULL, which means all regional unis from sf_pol will be used}
+\item{n_reg}{vector of indexes for the regions which will be used to choose the starting n points, default NULL, which means all regional unis from sf_pol will be used}
 
 \item{outpv}{Variables included in output. Default = FALSE, only provides a spatial polygon of the aggregated regions. If TRUE, additional variables are included (the population and area of the new regions)}
+
+\item{nopoprist}{Logical. If there should be no population restrictions}
+
+\item{onebyone}{Logical. I remaining regional units at the end should be added one by one}
+
+\item{repuntilmin}{Logical. If for minimum population condition has to be fulfilled for all newly created regions}
 }
 \value{
-\describe{\emph{newreg}} spatial polygon of the new regions (and list of neighbours \emph{nlist})
+\describe{\emph{newreg}} spatial polygon of the new regions (and list of neighbors \emph{nlist})
 }
 \description{
-Given \emph{m} smaller regional units aggreagte them into \emph{n} regions based on population restrictions
+Given \emph{m} smaller regional units aggregate them into \emph{n} regions based on population restrictions
 }
 \examples{
 library("RegionSim")
-data(GerMunData, package="RegionSim")
-library("rgdal")
-ger<-readOGR(system.file(dsn="shape",package="RegionSim"),layer="gemeinde")
-ger_lonlat<-spTransform(ger,"+init=epsg:4326")
-library("rgeos")
-cen_sf<-gCentroid(ger_lonlat,byid = TRUE)  ### get centroids of the municipalities
-library("geosphere")
-sf_mun_cen_dist<-distm(cen_sf@coords)
-sf_mun_cen_dist<-sf_mun_cen_dist/1000
-library("spdep")
-neigbs1<-poly2nb(ger)
-neigbs<-asgn_nbs(neigbs1,sf_mun_cen_dist,2)
-###Connecting the islands
-###
-neigbs[[302]]<-list(unlist(c(unlist(neigbs[[302]]),306)))
-neigbs[[306]]<-list(unlist(c(unlist(neigbs[[306]]),302)))
-###
-neigbs[[1851]]<-list(unlist(c(unlist(neigbs[[1851]]),1853)))
-neigbs[[1853]]<-list(unlist(c(unlist(neigbs[[1853]]),1851)))
-##
-neigbs[[9306]]<-list(unlist(c(unlist(neigbs[[9306]]),9395)))
-neigbs[[9395]]<-list(unlist(c(unlist(neigbs[[9395]]),9306)))
+library("sf")
+ger<-st_read(system.file(dsn = "shape/kreise.shp", package = "RegionSim"))
 
-simn3<-Aggreg(ger,n = 401, popvec = GerMunData$sf_POPULATION, areavec = GerMunData$sf_AREA,
-minpop = 34400, maxpop = 800000, neigbs = neigbs, cen_dist = sf_mun_cen_dist,
-n_reg = GerMunData$st_n_reg)
+simn1<-Aggreg(ger,n = 16,
+              popvec = ger$popNUTS3,
+              areavec = ger$areaNUTS3,
+              minpop = 678750, maxpop = 7000000,
+              nopoprist = TRUE, onebyone = FALSE)
 
 }
 \references{
-Simonovska R., & Tafenau E. (2021). Varying size and shape of spatial units: The MAUP in the case of Germany
+Simonovska R., & Tafenau E. (2022). Are the spatial scale and shape relevant in the estimation of agglomeration effects? A study on Germany
 }
 \seealso{
 \code{\link{asgn_nbs}}

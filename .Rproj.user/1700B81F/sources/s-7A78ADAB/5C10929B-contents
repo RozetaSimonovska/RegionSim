@@ -1,0 +1,363 @@
+rm(list= ls())
+
+setwd("C:/Users/Rozeta/Desktop/R PACKAGE/test")
+
+W1<-read.csv2("BC1_144.csv",sep=",",header = TRUE,colClasses = "character")  ##binary conectivity matrix
+for(i in 1:144){W1[,i]<-as.numeric(W1[,i])}
+W1<-as.matrix(W1)
+for(i in 1:144){ for(j in 1:144){if(is.na(W1[i,j])){ W1[i,j]<-0}}}
+
+W<-W1; if(all(rowSums(W)!=0)) {W=W/rowSums(W)} else {for(i in 1:N){if(sum(W[i,])!=0){W[i,]=W[i,]/sum(W[i,])}}}
+rm(W1)
+ww<-W
+
+######################################
+A<-read.csv2("datasetcow2015.csv",sep=",",header = TRUE,colClasses = "character")
+for(i in 10:11){A[,i]<-gsub(",","",A[,i])}
+for(i in 3:15){A[,i]<-as.numeric(A[,i])}
+
+
+t=15 ##% number of time periods
+N=144 ##% number of regions
+####
+y<-as.vector(A[,3]) # ratio
+#yalt<-A[,10]+log(100)  ## expenditure
+nobs=N*t
+for(i in 1:nobs){
+  if(A[i,14]==1) A[i,15]<-log(A[i,15]*1000000/A[i,12])
+  else A[1,15]<-0
+}
+#x<-as.matrix(A[,c(3+1,14+1,5+1,6+1,7+1)]) ### column numbers in the data matrix that correspond to the independent variables
+x<-as.matrix(A[,c(3+1,4+1,5+1,6+1,7+1)]) ### column numbers in the data matrix that correspond to the independent variables
+
+
+data<-cbind(A[,1:2],y,x)
+colnames(data)[1]<-"country"
+colnames(data)[3]<-"lnratio"
+#fm<-lnratio~lnGDP+citizensmissing+inttot+civtot+polity2
+rm(A,x,i,j,N,nobs,y,t)
+
+#effects=c("none","individual","time","twoways")[4]
+formula<-lnratio~lnGDP+lnpop+inttot+civtot+polity2
+index<-c("country","Year")
+#LYtrans<-FALSE
+model<-"sar"
+ldet<-NULL
+incr = NULL
+rintrv = TRUE
+##
+tlaginfo=list(ind=NULL,tl=FALSE,stl=FALSE)
+dynamic=FALSE
+###
+# tlaginfo=list(ind=NULL,tl=TRUE,stl=TRUE)
+# dynamic=TRUE
+
+demn=FALSE
+
+lndet="full"; incr=0.01; rintrv = TRUE
+
+effects="individual"
+effects="twoways"
+
+demn<-TRUE
+demn<-FALSE
+DIRtrans<-FALSE
+fe<-c("twoways")
+fe<-c("time")
+fe<-c("none")
+fe<-c("individual")
+LYtrans=TRUE
+LYtrans=FALSE
+rez01<-splm::spml(formula,data,index,listw = spdep::mat2listw(ww),model="within", #"pooling",
+                  effect=fe[1],
+                  lag=TRUE,spatial.error = "none",LeeYu=LYtrans)
+rez02<-SDPDm(formula, ###static model formula
+                data, W=ww, index, model="sar",
+                effects = fe[1], ##c("none","space","time","twoway")
+                dynamic=dynamic,  ##default FALSE
+                lndet=lndet,rintrv = rintrv,
+                LYtrans=LYtrans,incr = incr,demn=demn)
+##########################################################
+imp2<-impacts.SDPDm(rez02, NSIM = 500, sd = 12345)
+imp1 <- impacts(rez01, listw = mat2listw(ww,style = "W"), time = 15)
+#summary(imp1, zstats=TRUE, short=T)
+#summary(rez02)
+imp2$DIRECTst.tab;   imp1$res$direct
+imp2$INDIRECTst.tab;   imp1$res$indirect
+imp2$TOTALst.tab;   imp1$res$total
+rez01$sigma2; rez02$sige
+rez01$coefficients;  rez02$rho; rez02$coefficients
+s01<-summary(rez01); e01<-effects(rez01)
+s01$CoefTable[,2]; rez02$std
+s01$CoefTable[,3]; rez02$tstat
+s01$CoefTable[,4]; rez02$pval
+rez01$logLik; rez02$lik
+s01$rsqr ;rez02$rsqr
+e01$INTTable; rez02$int.tab
+cbind(e01$TETable[,1],rez02$tfe.tab[,1]); cbind(e01$SETable[1:10,1],rez02$sfe.tab[1:10,1])
+################################################
+
+
+
+demn<-TRUE
+demn<-FALSE
+Wnt<-kronecker(diag(15),ww)
+wxmat<-as.matrix(Wnt%*%as.matrix(data[,4:8]))
+colnames(wxmat)<-c("x1","x2","x3","x4","x5")
+data02<-cbind(data,wxmat)
+formula02<-lnratio~lnGDP+lnpop+inttot+civtot+polity2+x1+x2+x3+x4+x5
+fe<-c("twoways")
+fe<-c("time")
+fe<-c("none")
+fe<-c("individual")
+LYtrans=TRUE
+LYtrans=FALSE
+rez012<-splm::spml(formula02,data02,index,listw = spdep::mat2listw(ww),model="within",
+                   effect=fe[1],
+                   lag=TRUE,spatial.error = "none",LeeYu=LYtrans)
+rez022<-SDPDm(formula, ###static model formula
+                 data, W=ww, index, model="sdm",
+                 effects = fe[1], ##c("none","space","time","twoway")
+                 dynamic=dynamic,  ##default FALSE
+                 lndet=lndet,rintrv = rintrv,
+                 LYtrans=LYtrans,incr = incr,demn=demn)
+##########################################################
+imp4<-impacts.SDPDm(rez022, NSIM = 500, sd = 12345)
+imp3 <- impacts(rez012, listw = mat2listw(ww,style = "W"), time = 15) #summary(imp1, zstats=TRUE, short=T)
+summary(rez022)
+imp4$DIRECTst.tab;   imp3$res$direct
+imp4$INDIRECTst.tab;   imp3$res$indirect
+imp4$TOTALst.tab;   imp3$res$total
+rez012$sigma2; rez022$sige
+rez012$coefficients;  rez022$rho; rez022$coefficients
+s01<-summary(rez012); e01<-effects(rez012)
+s01$CoefTable[,2]; rez022$std
+s01$CoefTable[,3]; rez022$tstat
+s01$CoefTable[,4]; rez022$pval
+rez012$logLik; rez022$lik
+s01$rsqr ;rez022$rsqr
+e01$INTTable; rez022$int.tab
+cbind(e01$TETable[,1],rez022$tfe.tab[,1]); cbind(e01$SETable[1:10,1],rez022$sfe.tab[1:10,1])
+
+
+
+
+##########################
+dynamic<-TRUE ; tlaginfo=list(ind=NULL,tl=TRUE,stl=FALSE)
+data2<-data
+data2$tllnr<-NA
+t<-15;n<-144
+for(i in 1:(t-1)){
+  for(j in 1:n){
+    data2$tllnr[(i)*n+j]<-data$lnratio[(i-1)*n+j]
+  }
+}
+data2<-data2[145:2160,]
+rownames(data2)<-seq(1,nrow(data2),1)
+data2$WTy<-NA
+for(it in 1:(t-1)){
+  data2$WTy[(1+(it-1)*n):(it*n)]<-ww%*%data2$tllnr[(1+(it-1)*n):(it*n)]
+}
+formula2<-lnratio~tllnr+lnGDP+lnpop+inttot+civtot+polity2
+formula3<-lnratio~WTy+lnGDP+lnpop+inttot+civtot+polity2
+formula4<-lnratio~tllnr+WTy+lnGDP+lnpop+inttot+civtot+polity2
+
+demn<-FALSE
+LYtrans<-FALSE
+LYtrans<-TRUE
+DIRtrans<-TRUE
+DIRtrans<-FALSE
+fe<-c("time")
+fe<-c("individual")
+fe<-c("twoways")
+
+rez3<-splm::spml(formula2,data2,index,listw = spdep::mat2listw(ww),model="within",effect=fe[1],
+                 lag=TRUE,spatial.error = "none",Hess = FALSE,LeeYu=LYtrans)
+rez4<-SDPDm(formula, ###static model formula
+               data, ###data of dependent variable and covariates
+               W=ww,
+               index,
+               model="sar",
+               effects = fe[1], ##c("none","space","time","twoway")
+               dynamic=dynamic,  ##default FALSE
+               tlaginfo=list(ind=NULL,tl=TRUE,stl=FALSE),
+               lndet=lndet,rintrv = rintrv,
+               LYtrans=LYtrans,incr = incr,DIRtrans = DIRtrans)
+######
+imp6<-impacts.SDPDm(rez4, NSIM = 500, sd = 12345)
+imp5 <- impacts(rez3, listw = mat2listw(ww,style = "W"), time = 15)
+summary(imp5, zstats=TRUE, short=T)
+summary(rez4)
+imp6$DIRECTst.tab;   imp5$res$direct; imp6$DIRECTlt.tab
+imp6$INDIRECTst.tab;   imp5$res$indirect; imp6$INDIRECTlt.tab
+imp6$TOTALst.tab;   imp5$res$total
+rez3$sigma2; rez4$sige; rez4$sige1
+rez3$coefficients;  rez4$rho; rez4$coefficients; rez4$rho1; rez4$coefficients1
+rez3$logLik; rez4$lik; rez4$likl1
+s3<-summary(rez3); s3$rsqr ;rez4$rsqr
+
+
+
+demn<-FALSE
+LYtrans<-FALSE
+LYtrans<-TRUE
+DIRtrans<-TRUE
+DIRtrans<-FALSE
+fe<-c("time")
+fe<-c("individual")
+fe<-c("twoways")
+##################
+rez52<-splm::spml(formula3,data2,index,listw = spdep::mat2listw(ww),model="within",
+                 effect=fe[1],
+                 lag=TRUE,spatial.error = "none",Hess = FALSE,LeeYu=TRUE)
+rez62<-SDPDm(formula, ###static model formula
+               data, ###data of dependent variable and covariates
+               W=W,
+               index,
+               model="sar", ##c("sar","sdm")
+               effects = fe[1], ##c("none","space","time","twoway"), default ="none"
+               dynamic=TRUE,  ##default FALSE
+               tlaginfo=list(ind=NULL,tl=FALSE,stl=TRUE),
+               LYtrans=LYtrans,incr = 0.001)
+###############################
+imp62<-impacts.SDPDm(rez62, NSIM = 500, sd = 12345)
+imp52 <- impacts(rez52, listw = mat2listw(ww,style = "W"), time = 15)
+summary(imp52, zstats=TRUE, short=T)
+summary(rez6)
+imp62$DIRECTst.tab;   imp52$res$direct; imp62$DIRECTlt.tab
+imp62$INDIRECTst.tab;   imp52$res$indirect; imp62$INDIRECTlt.tab
+imp62$TOTALst.tab;   imp52$res$total
+rez52$sigma2; rez62$sige
+rez52$coefficients;  rez62$rho; rez62$coefficients; rez62$rho1; rez62$coefficients1
+rez52$logLik; rez62$lik; rez62$likl1
+s5<-summary(rez52); s5$rsqr ;rez62$rsqr
+
+
+
+
+demn<-FALSE
+LYtrans<-FALSE
+LYtrans<-TRUE
+DIRtrans<-TRUE
+DIRtrans<-FALSE
+fe<-c("time")
+fe<-c("individual")
+fe<-c("twoways")
+##################
+rez53<-splm::spml(formula4,data2,index,listw = spdep::mat2listw(ww),model="within",
+                  effect=fe[1],
+                  lag=TRUE,spatial.error = "none",Hess = FALSE,LeeYu=TRUE)
+rez63<-SDPDm(formula, ###static model formula
+             data, ###data of dependent variable and covariates
+             W=W,
+             index,
+             model="sar", ##c("sar","sdm")
+             effects = fe[1], ##c("none","space","time","twoway"), default ="none"
+             dynamic=TRUE,  ##default FALSE
+             tlaginfo=list(ind=NULL,tl=TRUE,stl=TRUE),
+             LYtrans=LYtrans,incr = 0.001)
+###############################
+imp63<-impacts.SDPDm(rez63, NSIM = 500, sd = 12345)
+imp53 <- impacts(rez53, listw = mat2listw(ww,style = "W"), time = 15)
+summary(imp53, zstats=TRUE, short=T)
+summary(rez63)
+imp63$DIRECTst.tab;   imp53$res$direct; imp63$DIRECTlt.tab
+imp63$INDIRECTst.tab;   imp53$res$indirect; imp63$INDIRECTlt.tab
+imp63$TOTALst.tab;   imp53$res$total
+rez53$sigma2; rez63$sige
+rez53$coefficients;  rez63$rho; rez63$coefficients; rez63$rho1; rez63$coefficients1
+rez53$logLik; rez63$lik; rez63$likl1
+s5<-summary(rez52); s5$rsqr ;rez62$rsqr
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+data2<-data
+data2$tllnr<-NA
+t<-15;n<-144
+for(i in 1:(t-1)){
+  for(j in 1:n){
+    data2$tllnr[(i)*n+j]<-data$lnratio[(i-1)*n+j]
+  }
+}
+data2<-data2[145:2160,]
+rownames(data2)<-seq(1,nrow(data2),1)
+data2$WTy<-NA
+for(it in 1:(t-1)){
+  data2$WTy[(1+(it-1)*n):(it*n)]<-ww%*%data2$tllnr[(1+(it-1)*n):(it*n)]
+}
+Wnt2<-kronecker(diag(14),ww)
+wxmat2<-as.matrix(Wnt2%*%as.matrix(data2[,4:8]))
+colnames(wxmat2)<-c("x1","x2","x3","x4","x5")
+data22<-cbind(data2,wxmat2)
+formula22<-lnratio~tllnr+lnGDP+lnpop+inttot+civtot+polity2+x1+x2+x3+x4+x5
+formula32<-lnratio~WTy+lnGDP+lnpop+inttot+civtot+polity2+x1+x2+x3+x4+x5
+formula42<-lnratio~tllnr+WTy+lnGDP+lnpop+inttot+civtot+polity2+x1+x2+x3+x4+x5
+############################################################################
+
+demn<-FALSE
+LYtrans<-FALSE
+LYtrans<-TRUE
+DIRtrans<-TRUE
+DIRtrans<-FALSE
+fe<-c("time")
+fe<-c("individual")
+fe<-c("twoways")
+#######################
+rez05<-splm::spml(formula22,data22,index,listw = spdep::mat2listw(ww),model="within",
+                  effect=fe[1],
+                  lag=TRUE,spatial.error = "none",Hess = FALSE,LeeYu=LYtrans)
+rez06<-SDPDm(formula, ###static model formula
+                data, ###data of dependent variable and covariates
+                W=ww,
+                index,
+                model="sdm", ##c("sar","sdm")
+                effects=fe[1], ##c("none","space","time","twoway"), default ="none"
+                dynamic=TRUE,  ##default FALSE
+                tlaginfo=list(ind=NULL,tl=TRUE,stl=FALSE),LYtrans=LYtrans)
+imp6<-impacts.SDPDm(rez06, NSIM = 100, sd = 12345)
+imp5 <- impacts(rez05, listw = mat2listw(ww,style = "W"), time = 15)
+####
+imp6$DIRECTst.tab;   imp5$res$direct; imp6$DIRECTlt.tab
+imp6$INDIRECTst.tab;   imp5$res$indirect; imp6$INDIRECTlt.tab
+imp6$TOTALst.tab;   imp5$res$total
+rez05$sigma2; rez06$sige
+rez05$coefficients;  rez06$rho; rez06$coefficients; rez06$rho1; rez06$coefficients1
+rez05$logLik; rez06$lik; rez06$likl1
+s5<-summary(rez05); s5$rsqr ;rez06$rsqr
+
+
+
+
+rez07<-splm::spml(formula42,data22,index,listw = spdep::mat2listw(ww),model="within",
+                  effect=fe[1],
+                  lag=TRUE,spatial.error = "none",Hess = FALSE,LeeYu=LYtrans)
+rez08<-SDPDm(formula, ###static model formula
+                data, ###data of dependent variable and covariates
+                W=ww,
+                index,
+                model="sdm", ##c("sar","sdm")
+                effects=fe[1], ##c("none","space","time","twoway"), default ="none"
+                dynamic=TRUE,  ##default FALSE
+                tlaginfo=list(ind=NULL,tl=TRUE,stl=TRUE),LYtrans=LYtrans)
+##########################
+imp8<-impacts.SDPDm(rez08, NSIM = 500, sd = 12345)
+imp7 <- impacts(rez07, listw = mat2listw(ww,style = "W"), time = 15)
+imp8$DIRECTst.tab;   imp7$res$direct; imp8$DIRECTlt.tab
+imp8$INDIRECTst.tab;   imp7$res$indirect; imp8$INDIRECTlt.tab
+rez07$sigma2; rez08$sige
+rez07$coefficients;  rez08$rho; rez08$coefficients; rez08$rho1; rez08$coefficients1
+rez07$logLik; rez08$lik; rez08$likl1
+s7<-summary(rez07); s7$rsqr ;rez08$rsqr

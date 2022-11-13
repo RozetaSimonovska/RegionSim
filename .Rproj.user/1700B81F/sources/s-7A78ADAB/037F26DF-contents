@@ -1,0 +1,55 @@
+fun1<-function(j){
+  x=sf_obj$geometry[i]
+  y=sf_obj$geometry[j]
+  z  <- sf::st_intersection(x, y)
+  temp<-NULL
+  if(inherits(z,"sfc_GEOMETRYCOLLECTION")){
+    temp <- st_collection_extract(z,type = "LINESTRING")
+  }else if(inherits(z,c("sfc_MULTILINESTRING","sfc_LINESTRING"))){
+    temp<-z}
+  z2 <- as_Spatial(temp)
+  if(is(z2,"SpatialLines")){
+    res <- sum(sp::SpatialLinesLengths(z2))
+  }
+}
+
+fun2<-function(i){
+  if(all(neigbs[[i]])!=0){
+    l <-sapply(neigbs[[i]],fun1)
+  }
+}
+
+start_time <- Sys.time()
+ss <-sapply(1:N,fun2)
+end_time <- Sys.time()
+end_time - start_time
+
+start_time <- Sys.time()
+for(i in 1:N){
+  if(all(neigbs[[i]])!=0){
+    l <-sapply(neigbs[[i]],fun1)
+
+  }
+}
+end_time <- Sys.time()
+end_time - start_time
+
+start_time <- Sys.time()
+for(i in 1:N){
+  if(all(neigbs[[i]])!=0){
+    for(j in neigbs[[i]]){
+      line_sf_l[[i]][[j]]  <- sf::st_intersection(sf_obj$geometry[i], sf_obj$geometry[j])
+      temp<-NULL
+      if(inherits(line_sf_l[[i]][[j]],"sfc_GEOMETRYCOLLECTION")){
+        temp <- st_collection_extract(line_sf_l[[i]][[j]],type = "LINESTRING")
+      }else if(inherits(line_sf_l[[i]][[j]],c("sfc_MULTILINESTRING","sfc_LINESTRING"))){
+        temp<-line_sf_l[[i]][[j]]}
+      line_sf_l2[[i]][[j]] <- as_Spatial(temp)
+      if(is(line_sf_l2[[i]][[j]],"SpatialLines")){
+        W[i,j] <- sum(sp::SpatialLinesLengths(line_sf_l2[[i]][[j]]))
+      }
+    }
+  }
+}
+end_time <- Sys.time()
+end_time - start_time

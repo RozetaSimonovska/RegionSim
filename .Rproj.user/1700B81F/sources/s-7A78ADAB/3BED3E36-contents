@@ -1,0 +1,122 @@
+rm(list = ls())
+####################################################################
+
+#####################################
+library("sf")
+library("stats")
+library("dplyr")
+#####################################
+
+setcountry<-function(country_code, sf_data, pop_data, rsize){
+  
+  sf <- sf_data %>% filter(CNTR_CODE==country_code)
+  pop <- pop_data %>% filter(substr(GEO,1,2)==country_code)
+  
+  if(country_code=="FR"){
+    pop <- pop %>% filter(!(substr(GEO,1,3) %in% c("FRX","FRY","FRM")))
+    sf<- sf %>% filter(!(substr(LAU_ID,1,2) %in% c("2A","2B","97")))
+  }else if(country_code=="ES"){
+    
+    pop_v1<- pop %>% filter((GEO %in% c("ES53"))) %>% pull(pop)
+    pop_v2<- pop %>% filter((GEO %in% c("ES63","ES64"))) %>% pull(pop) %>% sum()
+    
+    pop <- pop %>% filter(!(substr(GEO,1,3) %in% c("ES7"))) ##Canarias
+    pop <- pop %>% filter(!(substr(GEO,1,4) %in% c("ES53","ES63","ES64"))) ## Balearic, Ceuta, Melilla
+    
+    popn<-pop
+    tmp1<-popn$pop[which(popn$GEO=="ES5")]
+    popn$pop[which(popn$GEO=="ES5")]<-tmp1-pop_v1
+    tmp2<-pop$pop[which(pop$GEO=="ES6")]
+    pop$pop[which(pop$GEO=="ES6")]<-tmp2-pop_v2
+    
+    sf<- sf %>% filter(!(substr(LAU_ID,1,2) %in% c("07","35","38"))) %>% ## Balearic islands, Canary Islands, Canary Islands 
+      filter(!(LAU_ID %in% c("51001", "52001"))) ### Ceuta, Melilla in Africa
+    
+  }else {
+    pop <- pop %>% filter(!(substr(GEO,3,3) %in% c("X")))
+  }
+  
+  pop$rcode<-as.character(pop$GEO)
+  
+  if(rsize=="l"){
+    popv<-pop %>% dplyr::filter(base::nchar(rcode)==3) %>% dplyr::arrange(rcode)
+    nn<-nrow(popv)
+    maxv<-7000000
+  }else if (rsize=="m"){
+    popv<-pop %>% dplyr::filter(base::nchar(rcode)==4) %>% dplyr::arrange(rcode)
+    nn<-nrow(popv)
+    maxv<-3000000
+  }else if(rsize=="s"){
+    popv<-pop %>% dplyr::filter(base::nchar(rcode)==5) %>% dplyr::arrange(rcode)
+    nn<-nrow(popv)  
+    maxv<-800000
+  }
+  popnv<-popv$pop
+  
+  cen_sf <- st_centroid(st_geometry(sf), of_largest_polygon =T)
+  cen_d <- st_distance(cen_sf)
+  cen_dist <- units::drop_units(cen_d)/1000
+  neigbs1<-spdep::poly2nb(sf)
+  
+  if(country_code=="FR"){addn <- 4}else{addn <-2}
+  
+  neigbs<-asgn_nbs(neigbs=neigbs1, cen_dist=cen_dist, k=addn)
+  if(country_code=="NL"){
+    ##Hulst, Reimerswaal
+    neigbs[[250]]<-list(unlist(c(unlist(neigbs[[250]]),253)))
+    neigbs[[253]]<-list(unlist(c(unlist(neigbs[[253]]),250)))
+  }else if(country_code=="FR"){
+    ## Rivedoux-Plage, Rochelle
+    neigbs[[7165]]<-list(unlist(c(unlist(neigbs[[7165]]),7168)))
+    neigbs[[7168]]<-list(unlist(c(unlist(neigbs[[7168]]),7165)))
+    ## Locmaria, Croisic
+    neigbs[[19472]]<-list(unlist(c(unlist(neigbs[[19472]]),17717)))
+    neigbs[[17717]]<-list(unlist(c(unlist(neigbs[[17717]]),19472)))
+    ## Sauzon, Quiberon
+    neigbs[[20057]]<-list(unlist(c(unlist(neigbs[[20057]]),19825)))
+    neigbs[[19825]]<-list(unlist(c(unlist(neigbs[[19825]]),20057)))
+    ## Barbâtre, Barre-de-Monts
+    neigbs[[30295]]<-list(unlist(c(unlist(neigbs[[30295]]),30296)))
+    neigbs[[30296]]<-list(unlist(c(unlist(neigbs[[30296]]),30295)))
+    ## Bourcefranc-le-Chapus, Château-d'Oléron
+    neigbs[[6264]]<-list(unlist(c(unlist(neigbs[[6264]]),6380)))
+    neigbs[[6380]]<-list(unlist(c(unlist(neigbs[[6380]]),6264)))
+  }else if(country_code=="UK"){
+    ## Belfast, Dumfries and Galloway
+    neigbs[[383]]<-list(unlist(c(unlist(neigbs[[383]]),5)))
+    neigbs[[5]]<-list(unlist(c(unlist(neigbs[[5]]),383)))
+  }
+  
+  
+  res<-list(sf,pop,cen_dist,neigbs, popnv, nn, maxv)
+  names(res)<-c("sf","pop","cen_dist","neigbs", "popv", "nn", "maxv")
+  return(res)
+}
+
+
+bycountry<-function(data, nseedv){
+  
+  sf <- data$sf
+  sf$n_regv<-seq(1,nrow(sf),1)
+  popv<-data$popv
+  
+  datav<-Aggreg_nopoprist(sf_pol = sf, n = data$nn, nseed = nseedv, 
+                          n_reg = sf$n_regv,
+                          popvec = sf$POP_2020, 
+                          areavec = sf$AREA_KM2,
+                          minpop=min(popv), maxpop=data$maxv,
+                          neigbs=data$neigbs, cen_dist=data$cen_dist,
+                          outpv = TRUE,
+                          nopoprist=FALSE,
+                          onebyone = TRUE,
+                          repsmall = TRUE)
+  nn<-data$nn
+  rez<-list(datav, popv, nn, nseedv)
+  names(rez)<-c("sf_m","pop","nn", "nseed")
+  return(rez)
+  
+  
+}
+
+save.image("C:/Users/Rozeta/Desktop/I paper analysis/PAPER ANALYSIS/rdata/redo2022/norist/i01_function3.Rdata")
+

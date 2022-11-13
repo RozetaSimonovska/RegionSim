@@ -1,0 +1,182 @@
+rm(list= ls())
+
+setwd("C:/Users/Rozeta/Desktop/R PACKAGE/test")
+
+A<-read.csv2("datasetcow2015.csv",sep=",",header = TRUE,colClasses = "character")
+W1<-read.csv2("BC1_144.csv",sep=",",header = TRUE,colClasses = "character")  ##binary conectivity matrix
+We<-read.csv2("Wenemy.csv",sep=",",header = TRUE,colClasses = "character") ##enemy matrix
+for(i in 10:11){A[,i]<-gsub(",","",A[,i])}
+for(i in 3:15){A[,i]<-as.numeric(A[,i])}
+for(i in 1:144){W1[,i]<-as.numeric(W1[,i]);We[,i]<-as.numeric(We[,i])}
+W1<-as.matrix(W1);We<-as.matrix(We)
+for(i in 1:144){ for(j in 1:144){if(is.na(W1[i,j])){ W1[i,j]<-0}}}
+for(i in 1:144){ for(j in 1:144){if(is.na(We[i,j])){ We[i,j]<-0}}}
+
+t=15 ##% number of time periods
+N=144 ##% number of regions
+
+####
+y<-as.vector(A[,3]) # ratio
+#yalt<-A[,10]+log(100)  ## expenditure
+nobs=N*t
+for(i in 1:nobs){
+  if(A[i,14]==1) A[i,15]<-log(A[i,15]*1000000/A[i,12])
+  else A[1,15]<-0
+}
+x<-as.matrix(A[,c(3+1,14+1,5+1,6+1,7+1)]) ### column numbers in the data matrix that correspond to the independent variables
+#x<-as.matrix(A[,c(3+1,4+1,5+1,6+1,7+1)]) ### column numbers in the data matrix that correspond to the independent variables
+#xconstant=rep(1,N*t)
+############
+# prior.c = 1.01
+# prior.d = 1.01
+#opt.tol = 1e-3; opt.disp = 0
+incr = 0.001
+
+f.eff=c("none","space","time","twoway")[4]
+######################################
+
+data<-cbind(A[,1:2],y,x)
+colnames(data)[1]<-"country"
+colnames(data)[3]<-"lnratio"
+fm<-lnratio~lnGDP+citizensmissing+inttot+civtot+polity2
+#fm<-lnratio~lnGDP+lnpop+inttot+civtot+polity2
+
+
+W<-W1
+W[6,45]=0;W[16,45]=0;W[22,45]=0;W[43,45]=0;W[79,45]=0;W[84,45]=0;W[89,45]=0;W[101,45]=0;W[140,45]=0
+W[45,6]=0;W[45,16]=0;W[45,22]=0;W[45,43]=0;W[45,79]=0;W[45,84]=0;W[45,89]=0;W[45,101]=0;W[45,140]=0
+W[37,92]=0;W[137,92]=0;W[140,92]=0
+W[92,37]=0;W[92,137]=0;W[92,140]=0
+W[4,136]=0;W[27,136]=0;W[32,136]=0;W[33,136]=0;W[37,136]=0;W[39,136]=0;W[56,136]=0;W[73,136]=0;W[88,136]=0;W[118,136]=0;W[137,136]=0;W[140,136]=0
+W[136,4]=0;W[136,27]=0;W[136,32]=0;W[136,33]=0;W[136,37]=0;W[136,39]=0;W[136,56]=0;W[136,73]=0;W[136,88]=0;W[136,118]=0;W[136,137]=0;W[136,140]=0
+W[92,137]=0;W[93,137]=0;W[136,137]=0;W[137,92]=0;W[137,93]=0;W[137,136]=0
+WDOM=matrix(0,N,N)
+WDOMALL=matrix(0,N,N)
+xd=c(26,45,109,136,137)
+for(i in 1:5){
+  for(j in 1:5){
+    WDOM[xd[i],xd[j]]=1
+    WDOMALL[xd[i],xd[j]]=1
+  }
+  for(j in 1:N){
+    WDOMALL[xd[i],j]=1
+  }
+}
+for(i in 1:N){
+  WDOM[i,i]=0
+  WDOMALL[i,i]=0
+}
+W1<-W
+W2=W1%*%W1
+for(i in 1:N){
+  for(j in 1:N){
+    if(i==j) W2[i,j]=0
+    else if(W2[i,j]>0) W2[i,j]=1
+  }
+}
+W3=W2%*%W1
+for(i in 1:N){
+  for(j in 1:N){
+    if(i==j) W3[i,j]=0
+    else if(W3[i,j]>0) W3[i,j]=1
+  }
+}
+W4=matrix(0,N,N)
+for(i in 1:N) W4[i,i]=0
+WE=matrix(0,N,N)
+WE1=matrix(0,N,N)
+WD=matrix(0,N,N)
+WDall=matrix(0,N,N)
+WDEDOM=matrix(0,N,N)
+for(i in 1:N){
+  for(j in 1:N){
+    if(We[i,j]==1) WE[i,j]=1
+    if(We[i,j]==1 || W1[i,j]==1) WE1[i,j]=1
+    if(WDOM[i,j]==1 || W1[i,j]==1) WD[i,j]=1
+    if(WDOMALL[i,j]==1 || W1[i,j]==1) WDall[i,j]=1
+    if(We[i,j]==1 || WDOM[i,j]==1 || W1[i,j]==1) WDEDOM[i,j]=1
+  }
+}
+#if(all(rowSums(W1)!=0)) {W1=W1/rowSums(W1)} else {for(i in 1:N){if(sum(W1[i,])!=0){W1[i,]=W1[i,]/sum(W1[i,])}}}
+#if(all(rowSums(WD)!=0)) {WD=WD/rowSums(WD)} else {for(i in 1:N){if(sum(WD[i,])!=0){WD[i,]=WD[i,]/sum(WD[i,])}}}
+
+# if(all(rowSums(W)!=0)) {W=W/rowSums(W)} else {for(i in 1:N){if(sum(W[i,])!=0){W[i,]=W[i,]/sum(W[i,])}}}
+# if(all(rowSums(W2)!=0)) {W2=W2/rowSums(W2)} else {for(i in 1:N){if(sum(W2[i,])!=0){W2[i,]=W2[i,]/sum(W2[i,])}}}
+# if(all(rowSums(W3)!=0)) {W3=W3/rowSums(W3)} else {for(i in 1:N){if(sum(W3[i,])!=0){W3[i,]=W3[i,]/sum(W3[i,])}}}
+w1<-rownor(W1,zrow=FALSE)
+rezult1<-blmpSDPD(formula=fm, data=data, W=w1,index=c("country","Year"),
+                model=list("sar","sdm","sem","sdem"), effects="twoways",
+                ldet="full",incr=incr,LYtrans=FALSE)
+rezult12<-blmpSDPD(formula=fm, data=data, W=w1,index=c("country","Year"),
+                 model=list("sar","sdm","sem","sdem"), effects="twoways",
+                 ldet="full",incr=incr,LYtrans=FALSE,prior = "beta")
+rezult13<-blmpSDPD(formula=fm, data=data, W=w1,index=c("country","Year"),
+                 model=list("sar","sdm","sem","sdem"), effects="twoways",
+                 ldet="full",incr=incr,LYtrans=FALSE,
+                 dynamic = TRUE)
+w2<-rownor(W2,zrow=FALSE)
+rezult2<-blmpSDPD(formula=fm, data=data, W=w2,index=c("country","Year"),
+                model=list("sar","sdm","sem","sdem"), effects="twoways",
+                ldet="full",incr=incr,LYtrans=FALSE)
+w3<-rownor(W3,zrow=FALSE)
+rezult3<-blmpSDPD(formula=fm, data=data, W=w3,index=c("country","Year"),
+                model=list("sar","sdm","sem","sdem"), effects="twoways",
+                ldet="full",incr=incr,LYtrans=FALSE)
+we<-rownor(WE,zrow=FALSE)
+rezult4<-blmpSDPD(formula=fm, data=data, W=we,index=c("country","Year"),
+                model=list("sar","sdm","sem","sdem"), effects="twoways",
+                ldet="full",incr=incr,LYtrans=FALSE)
+we1<-rownor(WE1,zrow=FALSE)
+rezult5<-blmpSDPD(formula=fm, data=data, W=we1,index=c("country","Year"),
+                model=list("sar","sdm","sem","sdem"), effects="twoways",
+                ldet="full",incr=incr,LYtrans=FALSE,zrow=FALSE)
+wd<-rownor(WD,zrow=FALSE)
+rezult6<-blmpSDPD(formula=fm, data=data, W=wd,index=c("country","Year"),
+                model=list("sar","sdm","sem","sdem"), effects="twoways",
+                ldet="full",incr=incr,LYtrans=FALSE,zrow=FALSE)
+wd2<-rownor(WDall,zrow=FALSE)
+rezult7<-blmpSDPD(formula=fm, data=data, W=wd2,index=c("country","Year"),
+                model=list("sar","sdm","sem","sdem"), effects="twoways",
+                ldet="full",incr=incr,LYtrans=FALSE,zrow=FALSE)
+wd3<-rownor(WDEDOM,zrow=FALSE)
+rezult8<-blmpSDPD(formula=fm, data=data, W=wd3,index=c("country","Year"),
+                model=list("sar","sdm","sem","sdem"), effects="twoways",
+                ldet="full",incr=incr,LYtrans=FALSE,zrow=FALSE)
+
+
+ww<-rownor(WDall,zrow=FALSE)
+mod1<-SDPDM(formula=fm, ###static model formula
+               data, ###data of dependent variable and covariates
+               W=ww,
+               index=c("country","Year"),
+               model="sar",
+               effects = "twoways",
+               dynamic=FALSE,  ##default FALSE
+               LYtrans=FALSE,DIRtrans = FALSE,demn=FALSE)
+mod2<-spmoddyn(formula=fm, ###static model formula
+               data, ###data of dependent variable and covariates
+               W=ww,
+               index=c("country","Year"),
+               model="sar",
+               effects = "twoways",
+               dynamic=TRUE,  ##default FALSE
+               tlaginfo=list(ind=NULL,tl=TRUE,stl=TRUE),
+               lndet="full",rintrv = TRUE,
+               LYtrans=TRUE,DIRtrans = FALSE,demn=FALSE)
+# rezm01<-splm::spml(formula=fm,data,index=c("country","Year"),
+#                    listw = spdep::mat2listw(WDall),model="within",
+#                    effect="twoways",lag=TRUE,spatial.error = "none",LeeYu=TRUE)
+
+
+#############################
+###############################
+if(all(rowSums(WD)!=0)) {wd=WD/rowSums(WD)} else {for(i in 1:N){if(sum(WD[i,])!=0){wd[i,]=WD[i,]/sum(WD[i,])}}}
+modn<-SDPDm(formula=fm, ###static model formula
+             data, ###data of dependent variable and covariates
+             W=wd,
+             index=c("country","Year"),
+             model="sar",
+             effects = "twoways",
+             dynamic=T,  ##default FALSE
+             LYtrans=T, tlaginfo = list(ind = NULL, tl = T, stl = T))
+summary(modn)

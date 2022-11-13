@@ -1,0 +1,25 @@
+
+data(boston, package="spData")
+lw <- spdep::nb2listw(boston.soi)
+WW<-spdep::listw2mat(lw)
+
+start_time <- Sys.time()
+l1<-lndetmc2(WW,lmin=0,lmax=0.99,order=30,iter=30,sd=12345)
+end_time <- Sys.time()
+end_time - start_time
+
+start_time <- Sys.time()
+l2<-lndetmc(WW,lmin=0,lmax=0.99,m=30,p=30,sd=12345,incr=0.01)
+end_time <- Sys.time()
+end_time - start_time
+
+
+start_time <- Sys.time()
+l2<-lndetfull(WW,lmin=0,lmax=0.991)
+end_time <- Sys.time()
+end_time - start_time
+
+start_time <- Sys.time()
+l2<-lndetFull2(WW,lmin=0,lmax=0.99)
+end_time <- Sys.time()
+end_time - start_time

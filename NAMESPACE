@@ -2,5 +2,7 @@
 
 export(Aggreg)
 export(asgn_nbs)
-import(maptools)
-import(rgeos)
+import(dplyr)
+import(sf)
+importFrom(spdep,poly2nb)
+importFrom(units,drop_units)

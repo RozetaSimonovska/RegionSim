@@ -1,0 +1,44 @@
+rm(list=ls())
+#######################
+library("sf")
+library("sp")
+
+assfr<-function(regionx){
+  regionsf<-list()
+  for(i in 1:length(regionx)){
+    regionsf[[i]]<-st_transform(regionx[[i]],3035)
+  }
+  return(regionsf)
+}
+
+##########
+
+citys<-read.csv2("kmeans/allcities.csv",sep=";",header=T,encoding="latin1",colClasses = "character")
+citys$lon<-as.numeric(citys$lon)
+citys$lat<-as.numeric(citys$lat)
+
+coordinates(citys)<-~lon+lat
+proj4string(citys)<-"+init=epsg:4326"
+points1<-st_as_sf(citys)
+points2<-st_transform(points1,3035)
+
+rm(citys,points1)
+######################
+load("kmeans/RData/kmeans_small_list_full.Rdata")
+rm(small_regions_pop)
+
+reg_n3<-assfr(small_regions_list)
+
+artf_reg_n<-1000
+
+st_agr(points2) = "constant"  ###to avoid warning in st_intersection
+
+
+city.reg401<-matrix(NA,nrow = nrow(points2),ncol = artf_reg_n)
+for(j in 1:artf_reg_n){
+  st_agr(reg_n3[[j]]) = "constant"
+  city.reg401[,j]<-st_intersection(points2,reg_n3[[j]])$point}
+
+rm(small_regions_list,reg_n3)
+
+save.image("kmeans/RData/city_small_list1000.Rdata")

@@ -1,0 +1,23 @@
+### simplify  ### reduce size
+library("rgdal")
+ger<-readOGR(system.file(dsn="shape",package="SDPDmod"),layer="GermanyNUTS3")
+library(rgeos)
+g2<-gSimplify(ger,tol=1000,topologyPreserve=T)
+
+
+df = data.frame(ger)
+
+# Create a spatial polygon data frame (includes shp attributes)
+spdf = SpatialPolygonsDataFrame(g2, df)
+
+# Write to shapefile
+
+writeOGR(spdf,
+         layer = 'GermanyNUTS3',
+         'C:/Users/Rozeta/Desktop/R PACKAGE/SDPDmod/SDPDmod/inst/shape',
+         driver="ESRI Shapefile",
+         overwrite_layer=TRUE)
+
+
+
+

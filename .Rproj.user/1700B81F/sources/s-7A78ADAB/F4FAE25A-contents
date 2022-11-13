@@ -1,0 +1,62 @@
+rm(list=ls())
+dir<-"C:/Users/Rozeta/Desktop/I paper analysis/PAPER ANALYSIS/"
+
+num<-4; ccode<-"HU"; reg<-"s"; addv<-FALSE; regv<-"NUTS1"; cntname<-"Hungary"; regs<-"large"
+load(paste0(dir,"rdata/redo2022/norist/i0",num,"_2_",reg,"_",ccode,"_var.Rdata"))
+
+addUnits <- function(n) {
+  labels <- ifelse(n < 1000, n,  # less than thousands
+                   ifelse(n < 1e6, paste0(round(n/1e3), 'k'),  # in thousands
+                          ifelse(n < 1e9, paste0(round(n/1e6), 'M'),  # in millions
+                                 ifelse(n < 1e12, paste0(round(n/1e9), 'B'), # in billions
+                                        ifelse(n < 1e15, paste0(round(n/1e12), 'T'), # in trillions
+                                               'too big!'
+                                        )))))
+  return(labels)
+}
+
+nn<-length(pop)
+sd_vec<-pv<-rep(NA,nn)
+vt<-vector("list",nn)
+pop_vec<-vector()
+for(i in 1:nn){
+  sd_vec[i]<-sd(pop[[i]])
+  pop_vec<-c(pop_vec,pop[[i]])
+  if(addv){temp<-apop[[i]]$pop}else{ temp<-apop[[i]]}
+  vt[[i]]<-var.test(pop[[i]],temp)
+  pv[i]<-vt[[i]]$p.value
+}
+if(addv){pop_sd<-sd(apop[[1]]$pop)}else{pop_sd<-sd(apop[[1]])}
+df<-as.data.frame(cbind(id=seq(1,nn,1),sd=sd_vec))
+nmreg<-paste0(cntname," - ",regs," regions")
+library(ggplot2)
+ggplot(df, aes(id,sd)) + 
+  geom_point(colour = "gray", size = 3) +
+  annotate("point", x = nn/2, y = pop_sd, colour = "black", )+
+  annotate("text", x = nn/2+55, y = pop_sd, colour = "black", label=regv)+
+  theme_bw()+
+  labs(x="region",y="std. dev")+
+  expand_limits(y = c(0, NA)) +
+  scale_y_continuous(labels = addUnits)+
+  ggtitle(nmreg) +
+  theme(plot.title = element_text(hjust = 0.5))
+
+length(pv[which(pv<0.05)])
+
+
+#i<-1;boxplot(pop[[i]],apop[[i]],horizontal = T)
+##boxplot(apop[[1]],pop[[1]],pop[[2]],pop[[3]],pop[[4]],pop[[5]],horizontal = T)
+df2<-as.data.frame(cbind(reg=rep(1:1001,each=length(temp)), pop = c(pop_vec,temp)))
+df3<-df2[which(df2$reg %in% c(1,2,3,4,5,1001)),]
+df3$reg<-as.factor(df3$reg)
+library("scales")
+ggplot(df3, aes(x=reg, y=pop)) + 
+  geom_boxplot(color="gray")+
+  coord_flip()+
+  theme_bw()+
+  labs(y="population",x="region")+
+  expand_limits(y = c(0, NA)) +
+  scale_x_discrete(labels = c("1","2","3","4","5",regv))+
+  scale_y_continuous(labels =label_number(suffix = " M", scale = 1e-6)) +
+  ggtitle(nmreg) +
+  theme(plot.title = element_text(hjust = 0.5))             

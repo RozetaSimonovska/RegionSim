@@ -1,0 +1,10 @@
+
+ll1 = cbind(c(1,2,3,1),c(3,2,2,3));Sll2 = Line(ll2); S2 = Lines(list(Sll2), ID="b")
+
+ll2 = cbind(c(1,4,3,1),c(3,4,2,3));Sll2 = Line(ll2); S2 = Lines(list(Sll2), ID="b")
+Sl = SpatialLines(list(S1,S2))
+
+ps <- SpatialPolygons(
+  lapply(1:length(Sl),
+         function(i) Polygons(lapply(coordinates(Sl)[[i]], function(y) Polygon(y)), as.character(i))))
+

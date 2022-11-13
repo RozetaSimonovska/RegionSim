@@ -1,0 +1,45 @@
+rm(list = ls())
+
+
+
+small_regions_list<-vector("list",1000)
+small_regions_pop<-matrix(NA,401,1000)
+
+################################
+load("kmeans/RData/kmeans_small_list1.Rdata")
+for(i in 1:250){
+  small_regions_list[[i]]<-small1[[i]]
+  small_regions_pop[,i]<-pop1[,i]
+}
+
+rm(small1, pop1)
+
+######################
+load("kmeans/RData/kmeans_small_list2.Rdata")
+for(i in 1:250){
+  small_regions_list[[i+250]]<-small2[[i]]
+  small_regions_pop[,i+250]<-pop2[,i]
+}
+
+rm(small2, pop2)
+
+################################
+load("kmeans/RData/kmeans_small_list3.Rdata")
+for(i in 1:250){
+  small_regions_list[[i+500]]<-small3[[i]]
+  small_regions_pop[,i+500]<-pop3[,i]
+}
+
+rm(small3, pop3)
+
+######################
+load("kmeans/RData/kmeans_small_list4.Rdata")
+for(i in 1:250){
+  small_regions_list[[i+750]]<-small4[[i]]
+  small_regions_pop[,i+750]<-pop4[,i]
+}
+
+rm(small4, pop4)
+#######
+rm(i)
+save.image("kmeans/RData/kmeans_small_list_full.Rdata")

@@ -1,0 +1,568 @@
+rm(list=ls())
+sds1<-seq(12345,113244,101)
+sds<-matrix(sds1,nrow=10,byrow=TRUE)
+###sds2<-matrix(sds1,nrow=100,byrow=TRUE)
+##sds<-sds2[1:3,]
+
+library("sp")
+library("rgeos")
+library("rgdal")
+library("raster")
+library("geosphere")
+library("spdep")
+
+library("doParallel")
+out<-list()
+for(it in 1:nrow(sds)){
+  registerDoParallel(cores=length(sds[it,]))
+  print(paste("round",it))
+  out[[it]]<-foreach(sdi=1:length(sds[it,])) %dopar% { 
+    
+     load("paper I/municipality_data.RData")
+    
+    
+    nseed<-sds[it,sdi]
+    
+    start_ns<-nseed
+    
+    nr<-401
+    ################################
+    ########################
+    repeat{ ### repeat unit minimal population in a region is over tha 80% of the smallest kreis
+      set.seed(nseed)  ##set seed
+      
+      re<-list()
+      
+      st_seed2<-nseed
+      ##############
+      #add regions with over average population
+      large_pop_mun<-which(sf_POPULATION>800000)  ##The maximum population for NUTS3 region
+      if(length(large_pop_mun)!=0){
+        for(im in 1:length(large_pop_mun)){
+          re[[im]]<-large_pop_mun[im]
+          n_reg<-n_reg[!n_reg %in% c(re[[im]])]
+          n_reg<-n_reg[!n_reg %in% neigbs[[re[[im]]]]]
+        }
+      }
+      
+      nseed<-nseed-1
+      ###ads remaining starting municipality of the total 401
+      repeat{
+        nseed<-nseed+1
+        set.seed(nseed)
+        n_reg2<-n_reg
+        for(i in (length(large_pop_mun)+1):nr){
+          if(length(n_reg2)==0){break} 
+          re[[i]]<-as.numeric(sample(as.character(n_reg2),1))
+          n_reg2<-n_reg2[!n_reg2 %in% c(re[[i]])]  
+          n_reg2<-n_reg2[!n_reg2 %in% neigbs[[re[[i]]]]]
+          if(nseed<start_ns+4){   ###as we increase the seed if it is increased by 3 or less use 80% of average distance else 50%
+            n_reg2<-n_reg2[!n_reg2 %in% which(sf_mun_cen_dist[re[[i]],]<sqrt(tot_ar_m2/nr)*(0.801))]
+            } else{n_reg2<-n_reg2[!n_reg2 %in% which(sf_mun_cen_dist[re[[i]],]<sqrt(tot_ar_m2/nr)*(0.501))]}
+        }
+        nseed<-nseed+1
+        if(length(re)==nr){break} 
+      }
+      
+      nseed<-nseed-1 
+      
+      ###change order of one of the very large region with anotherone
+      if(length(large_pop_mun)!=0){
+        r_p1<-sample(1:length(large_pop_mun),1)
+        r_p2<-sample((length(large_pop_mun)+1):nr,1)
+        pom0<-re[[r_p1]]
+        re[[r_p1]]<-re[[r_p2]]
+        re[[r_p2]]<-pom0
+      }
+      
+      
+      frstm<-unlist(re)
+      
+      neigbs2<-neigbs    ###availibale neigbours which are not already added to a region
+      for (k in 1:n_r_small){  neigbs2[[k]]<-list(unlist(neigbs[[k]])[!unlist(neigbs[[k]]) %in% frstm])}
+      ###################################################
+      ar_nreg<-rep(NA,nr)  ###area of the new regions
+      for (i in 1:nr){ar_nreg[i]<-as.numeric(sum(sf_AREA[re[[i]]]))}
+      pop_nreg<-rep(NA,nr)  ### population of the new region
+      for (i in 1:nr){pop_nreg[i]<-as.numeric(sum(sf_POPULATION[re[[i]]]))}
+      #######################################################
+      
+      num_neb<-rep(list(NA),nr); no_neb_dum<-rep(0,nr); all_neb<-vector()  ###no neigbours dummy (indicating that there are no more neigbours to be added to the region)
+      for(i in 1:nr) {
+        for(kk in 1:length(re[[i]])){num_neb[[i]][kk]<-length(unlist(neigbs2[[re[[i]][kk]]]))}
+        all_neb[i]<-sum(num_neb[[i]])
+        if(all(unlist(num_neb[[i]])==0)){no_neb_dum[i]<-1}}
+      
+      
+      set.seed(nseed)
+      ### adding regions based on population and (having) neigbours
+      min_kreis<-34428 ####Zweibruecken, KrStadt  ###sf_mun_polyg@data$EWZ[which(sf_mun_polyg@data$NUTS=="DEB3A")]
+      if(nseed<(st_seed2+4)){ 
+        min_kr_prop<-min_kreis*0.8
+      }else if(nseed<(st_seed2+6)){ 
+        min_kr_prop<-min_kreis*0.66667
+      }else{ 
+        min_kr_prop<-min_kreis*0.5}
+      repeat{
+        ###order based on population, starting with the region with the smallest number
+        for(i in which(pop_nreg<min_kr_prop & no_neb_dum==0)[
+          order(pop_nreg[which(pop_nreg<min_kr_prop & no_neb_dum==0)],
+                all_neb[which(pop_nreg<min_kr_prop & no_neb_dum==0)])]) { 
+          if(pop_nreg[i]>min_kr_prop || no_neb_dum[i]==1){next}
+          else{
+            neb_l<-list()
+            for(kk in 1:length(re[[i]])){ neb_l[[kk]]<-unlist(neigbs2[[re[[i]][kk]]])  }
+            neb_v<-unique(unlist(neb_l))
+            if(length(neb_v)==0){ next
+            } else{
+              pomos1<-neb_v[which(sf_POPULATION[neb_v]==max(sf_POPULATION[neb_v]))]
+              re[[i]]<-c(re[[i]],pomos1)
+              for (k in 1:n_r_small){ neigbs2[[k]]<-list(unlist(neigbs2[[k]])[!unlist(neigbs2[[k]]) %in% pomos1])}
+              ar_nreg[i]<-as.numeric(sum(sf_AREA[re[[i]]]))
+              pop_nreg[i]<-as.numeric(sum(sf_POPULATION[re[[i]]]))
+              no_neb_dum<-rep(0,nr);num_neb<-rep(list(NA),nr)
+              for(i in 1:nr) { 
+                for(kk in 1:length(re[[i]])){num_neb[[i]][kk]<-length(unlist(neigbs2[[re[[i]][kk]]]))}
+                all_neb[i]<-sum(num_neb[[i]])
+                if(all(unlist(num_neb[[i]])==0)){no_neb_dum[i]<-1}}
+            }}}
+        if(length( which(pop_nreg<min_kr_prop & no_neb_dum==0))==0)     {break}
+      }
+      
+      ##############################################
+      no_neb_dum<-rep(0,nr);num_neb<-rep(list(NA),nr); all_neb<-vector()
+      for(i in 1:nr) { 
+        for(kk in 1:length(re[[i]])){num_neb[[i]][kk]<-length(unlist(neigbs2[[re[[i]][kk]]]))}
+        all_neb[i]<-sum(num_neb[[i]])
+        if(all(unlist(num_neb[[i]])==0)){no_neb_dum[i]<-1}}
+      
+      for (i in 1:nr){ar_nreg[i]<-as.numeric(sum(sf_AREA[re[[i]]]))}
+      for (i in 1:nr){pop_nreg[i]<-as.numeric(sum(sf_POPULATION[re[[i]]]))}
+      ################################
+      
+      nseed<-nseed+1
+      
+      if(no_neb_dum[which(pop_nreg==min(pop_nreg))]==0){  ##If the region with min population still has available neighbours
+        repeat{
+          ###order based on population, starting with the region with the smallest number
+          for(i in which(pop_nreg<min_kreis & no_neb_dum==0)[
+            order(all_neb[which(pop_nreg<min_kreis & no_neb_dum==0)],
+                  pop_nreg[which(pop_nreg<min_kreis & no_neb_dum==0)])]) { 
+            if(pop_nreg[i]>min_kreis || no_neb_dum[i]==1){next}
+            else{
+              neb_l<-list()
+              for(kk in 1:length(re[[i]])){ neb_l[[kk]]<-unlist(neigbs2[[re[[i]][kk]]])  }
+              neb_v<-unique(unlist(neb_l))
+              if(length(neb_v)==0){next
+                }  else{
+                pomos1<-neb_v[which(sf_POPULATION[neb_v]==max(sf_POPULATION[neb_v]))]
+                re[[i]]<-c(re[[i]],pomos1)
+                for (k in 1:n_r_small){ neigbs2[[k]]<-list(unlist(neigbs2[[k]])[!unlist(neigbs2[[k]]) %in% pomos1])}
+                ar_nreg[i]<-as.numeric(sum(sf_AREA[re[[i]]]))
+                pop_nreg[i]<-as.numeric(sum(sf_POPULATION[re[[i]]]))
+                no_neb_dum<-rep(0,nr);num_neb<-rep(list(NA),nr)
+                for(i in 1:nr) { 
+                  for(kk in 1:length(re[[i]])){num_neb[[i]][kk]<-length(unlist(neigbs2[[re[[i]][kk]]]))}
+                  all_neb[i]<-sum(num_neb[[i]])
+                  if(all(unlist(num_neb[[i]])==0)){no_neb_dum[i]<-1}}
+              }}}
+          if(length( which(pop_nreg<min_kreis & no_neb_dum==0))==0 || (
+            pop_nreg[which(pop_nreg==min(pop_nreg))]<min_kr_prop & no_neb_dum[which(pop_nreg==min(pop_nreg))]==1))     
+          {break}
+          
+        }
+      }
+      ##############################################
+      no_neb_dum<-rep(0,nr);num_neb<-rep(list(NA),nr); all_neb<-vector()
+      for(i in 1:nr) { 
+        for(kk in 1:length(re[[i]])){num_neb[[i]][kk]<-length(unlist(neigbs2[[re[[i]][kk]]]))}
+        all_neb[i]<-sum(num_neb[[i]])
+        if(all(unlist(num_neb[[i]])==0)){no_neb_dum[i]<-1}}
+      
+      for (i in 1:nr){ar_nreg[i]<-as.numeric(sum(sf_AREA[re[[i]]]))}
+      for (i in 1:nr){pop_nreg[i]<-as.numeric(sum(sf_POPULATION[re[[i]]]))}
+      ################################
+      
+      if(pop_nreg[which(pop_nreg==min(pop_nreg))]>min_kr_prop || no_neb_dum[which(pop_nreg==min(pop_nreg))]==0){break}
+      
+    }
+    #######################################################################################################
+    nseed<-nseed-1
+    set.seed(nseed)
+    rm(sf_mun_cen_dist)
+    
+    ##############################################
+    no_neb_dum<-rep(0,nr);num_neb<-rep(list(NA),nr)
+    for(i in 1:nr) { 
+      for(kk in 1:length(re[[i]])){num_neb[[i]][kk]<-length(unlist(neigbs2[[re[[i]][kk]]]))}
+      all_neb[i]<-sum(num_neb[[i]])
+      if(all(unlist(num_neb[[i]])==0)){no_neb_dum[i]<-1}}
+    
+    for (i in 1:nr){ar_nreg[i]<-as.numeric(sum(sf_AREA[re[[i]]]))}
+    for (i in 1:nr){pop_nreg[i]<-as.numeric(sum(sf_POPULATION[re[[i]]]))}
+    
+    repeat{
+      ###order based on number of neigbours and population, starting with the region with the smallest number
+      for(i in which(pop_nreg<(tot_pop/nr)/2 & no_neb_dum==0)[
+        order(all_neb[which(pop_nreg<(tot_pop/nr)/2 & no_neb_dum==0)],
+              pop_nreg[which(pop_nreg<(tot_pop/nr)/2 & no_neb_dum==0)])]) { 
+        if(pop_nreg[i]>(tot_pop/nr)/2 || no_neb_dum[i]==1){next}
+        else{
+          neb_l<-list()
+          for(kk in 1:length(re[[i]])){ neb_l[[kk]]<-unlist(neigbs2[[re[[i]][kk]]])  }
+          neb_v<-unique(unlist(neb_l))
+          if(length(neb_v)==0){next}
+          else{
+            pomos1<-neb_v[which(sf_POPULATION[neb_v]==max(sf_POPULATION[neb_v]))]
+            re[[i]]<-c(re[[i]],pomos1)
+            for (k in 1:n_r_small){ neigbs2[[k]]<-list(unlist(neigbs2[[k]])[!unlist(neigbs2[[k]]) %in% pomos1])}
+            ar_nreg[i]<-as.numeric(sum(sf_AREA[re[[i]]]))
+            pop_nreg[i]<-as.numeric(sum(sf_POPULATION[re[[i]]]))
+            no_neb_dum<-rep(0,nr);num_neb<-rep(list(NA),nr)
+            for(i in 1:nr) { 
+              for(kk in 1:length(re[[i]])){num_neb[[i]][kk]<-length(unlist(neigbs2[[re[[i]][kk]]]))}
+              all_neb[i]<-sum(num_neb[[i]])
+              if(all(unlist(num_neb[[i]])==0)){no_neb_dum[i]<-1}}
+          }}}
+      
+      ####
+      
+      if(length(which(pop_nreg<(tot_pop/nr)/2 & no_neb_dum==0))==0)     {break}
+    }
+    
+    ##############################################
+    no_neb_dum<-rep(0,nr);num_neb<-rep(list(NA),nr)
+    for(i in 1:nr) { 
+      for(kk in 1:length(re[[i]])){num_neb[[i]][kk]<-length(unlist(neigbs2[[re[[i]][kk]]]))}
+      all_neb[i]<-sum(num_neb[[i]])
+      if(all(unlist(num_neb[[i]])==0)){no_neb_dum[i]<-1}}
+    
+    for (i in 1:nr){ar_nreg[i]<-as.numeric(sum(sf_AREA[re[[i]]]))}
+    for (i in 1:nr){pop_nreg[i]<-as.numeric(sum(sf_POPULATION[re[[i]]]))}
+    ################################
+    
+    repeat{
+      ###order based on number of neigbours and population, starting with the region with the smallest number
+      for(i in which(pop_nreg<(tot_pop/nr) & no_neb_dum==0)[
+        order(all_neb[which(pop_nreg<(tot_pop/nr) & no_neb_dum==0)],
+              pop_nreg[which(pop_nreg<(tot_pop/nr) & no_neb_dum==0)])]) { 
+        if(pop_nreg[i]>(tot_pop/nr) || no_neb_dum[i]==1){next}
+        else{
+          neb_l<-list()
+          for(kk in 1:length(re[[i]])){ neb_l[[kk]]<-unlist(neigbs2[[re[[i]][kk]]])  }
+          neb_v<-unique(unlist(neb_l))
+          if(length(neb_v)==0){next}
+          else{
+            pomos1<-neb_v[which(sf_POPULATION[neb_v]==max(sf_POPULATION[neb_v]))]
+            re[[i]]<-c(re[[i]],pomos1)
+            for (k in 1:n_r_small){ neigbs2[[k]]<-list(unlist(neigbs2[[k]])[!unlist(neigbs2[[k]]) %in% pomos1])}
+            ar_nreg[i]<-as.numeric(sum(sf_AREA[re[[i]]]))
+            pop_nreg[i]<-as.numeric(sum(sf_POPULATION[re[[i]]]))
+            no_neb_dum<-rep(0,nr);num_neb<-rep(list(NA),nr)
+            for(i in 1:nr) { 
+              for(kk in 1:length(re[[i]])){num_neb[[i]][kk]<-length(unlist(neigbs2[[re[[i]][kk]]]))}
+              all_neb[i]<-sum(num_neb[[i]])
+              if(all(unlist(num_neb[[i]])==0)){no_neb_dum[i]<-1}}
+          }}}
+      
+      ####
+      
+      if(length(which(pop_nreg<(tot_pop/nr) & no_neb_dum==0))==0)     {break}
+    }
+    
+    ##############################################
+    no_neb_dum<-rep(0,nr);num_neb<-rep(list(NA),nr)
+    for(i in 1:nr) { 
+      for(kk in 1:length(re[[i]])){num_neb[[i]][kk]<-length(unlist(neigbs2[[re[[i]][kk]]]))}
+      all_neb[i]<-sum(num_neb[[i]])
+      if(all(unlist(num_neb[[i]])==0)){no_neb_dum[i]<-1}}
+    
+    for (i in 1:nr){ar_nreg[i]<-as.numeric(sum(sf_AREA[re[[i]]]))}
+    for (i in 1:nr){pop_nreg[i]<-as.numeric(sum(sf_POPULATION[re[[i]]]))}
+    ################################
+    
+    
+    ### adding regions based on population, (having) neigbours and area
+    set.seed(nseed)
+    repeat{
+      ###order based on population, starting with the region with the smallest number
+      for(i in which(ar_nreg<(tot_ar/nr) & pop_nreg<(tot_pop/nr)*2 & no_neb_dum==0)[
+        order(pop_nreg[which(ar_nreg<(tot_ar/nr) & pop_nreg<(tot_pop/nr)*2 & no_neb_dum==0)])]){
+        neb_l<-list()
+        for(kk in 1:length(re[[i]])){  neb_l[[kk]]<-unlist(neigbs2[[re[[i]][kk]]])   }
+        neb_v<-unique(unlist(neb_l))
+        if(length(neb_v)==0){next}
+        else{
+          pomos1<-neb_v[which(sf_POPULATION[neb_v]==max(sf_POPULATION[neb_v]))]
+          re[[i]]<-c(re[[i]],pomos1)
+          for (k in 1:n_r_small){ neigbs2[[k]]<-list(unlist(neigbs2[[k]])[!unlist(neigbs2[[k]]) %in% pomos1])}
+          ar_nreg[i]<-as.numeric(sum(sf_AREA[re[[i]]]))
+          pop_nreg[i]<-as.numeric(sum(sf_POPULATION[re[[i]]]))
+          no_neb_dum<-rep(0,nr);num_neb<-rep(list(NA),nr)
+          for(i in 1:nr) { 
+            for(kk in 1:length(re[[i]])){num_neb[[i]][kk]<-length(unlist(neigbs2[[re[[i]][kk]]]))}
+            all_neb[i]<-sum(num_neb[[i]])
+            if(all(unlist(num_neb[[i]])==0)){no_neb_dum[i]<-1}}
+        }
+      }
+      no_neb_dum<-rep(0,nr);num_neb<-rep(list(NA),nr)
+      for(i in 1:nr) { 
+        for(kk in 1:length(re[[i]])){num_neb[[i]][kk]<-length(unlist(neigbs2[[re[[i]][kk]]]))}
+        all_neb[i]<-sum(num_neb[[i]])
+        if(all(unlist(num_neb[[i]])==0)){no_neb_dum[i]<-1}}
+      
+      if(length(which(ar_nreg<(tot_ar/nr) & pop_nreg<(tot_pop/nr)*2 & no_neb_dum==0))==0){break}
+    }
+    ########################
+    no_neb_dum<-rep(0,nr);num_neb<-rep(list(NA),nr)
+    for(i in 1:nr) { 
+      for(kk in 1:length(re[[i]])){num_neb[[i]][kk]<-length(unlist(neigbs2[[re[[i]][kk]]]))}
+      all_neb[i]<-sum(num_neb[[i]])
+      if(all(unlist(num_neb[[i]])==0)){no_neb_dum[i]<-1}}
+    
+    for (i in 1:nr){ar_nreg[i]<-as.numeric(sum(sf_AREA[re[[i]]]))}
+    for (i in 1:nr){pop_nreg[i]<-as.numeric(sum(sf_POPULATION[re[[i]]]))}
+    ###############################
+    
+    set.seed(nseed)
+    repeat{
+      ###order based on population, starting with the region with the smallest number
+      for(i in which(ar_nreg<(tot_ar/nr)*2 & pop_nreg<(tot_pop/nr)*2 & no_neb_dum==0)[
+        order(pop_nreg[which(ar_nreg<(tot_ar/nr)*2 & pop_nreg<(tot_pop/nr)*2 & no_neb_dum==0)])]){
+        neb_l<-list()
+        for(kk in 1:length(re[[i]])){  neb_l[[kk]]<-unlist(neigbs2[[re[[i]][kk]]])   }
+        neb_v<-unique(unlist(neb_l))
+        if(length(neb_v)==0){next}
+        else{
+          pomos1<-neb_v[which(sf_POPULATION[neb_v]==max(sf_POPULATION[neb_v]))]
+          re[[i]]<-c(re[[i]],pomos1)
+          for (k in 1:n_r_small){ neigbs2[[k]]<-list(unlist(neigbs2[[k]])[!unlist(neigbs2[[k]]) %in% pomos1])}
+          ar_nreg[i]<-as.numeric(sum(sf_AREA[re[[i]]]))
+          pop_nreg[i]<-as.numeric(sum(sf_POPULATION[re[[i]]]))
+          no_neb_dum<-rep(0,nr);num_neb<-rep(list(NA),nr)
+          for(i in 1:nr) { 
+            for(kk in 1:length(re[[i]])){num_neb[[i]][kk]<-length(unlist(neigbs2[[re[[i]][kk]]]))}
+            all_neb[i]<-sum(num_neb[[i]])
+            if(all(unlist(num_neb[[i]])==0)){no_neb_dum[i]<-1}}
+        }
+      }
+      no_neb_dum<-rep(0,nr);num_neb<-rep(list(NA),nr)
+      for(i in 1:nr) { 
+        for(kk in 1:length(re[[i]])){num_neb[[i]][kk]<-length(unlist(neigbs2[[re[[i]][kk]]]))}
+        all_neb[i]<-sum(num_neb[[i]])
+        if(all(unlist(num_neb[[i]])==0)){no_neb_dum[i]<-1}}
+      
+      if(length(which(ar_nreg<(tot_ar/nr)*2 & pop_nreg<(tot_pop/nr)*2 & no_neb_dum==0))==0){break}
+    }
+    
+    ########################
+    no_neb_dum<-rep(0,nr);num_neb<-rep(list(NA),nr)
+    for(i in 1:nr) { 
+      for(kk in 1:length(re[[i]])){num_neb[[i]][kk]<-length(unlist(neigbs2[[re[[i]][kk]]]))}
+      all_neb[i]<-sum(num_neb[[i]])
+      if(all(unlist(num_neb[[i]])==0)){no_neb_dum[i]<-1}}
+    
+    for (i in 1:nr){ar_nreg[i]<-as.numeric(sum(sf_AREA[re[[i]]]))}
+    for (i in 1:nr){pop_nreg[i]<-as.numeric(sum(sf_POPULATION[re[[i]]]))}
+    ###############################
+    max_n3<-800000
+    set.seed(nseed)
+    repeat{
+      ###order based on population, starting with the region with the smallest number
+      for(i in which(ar_nreg<(tot_ar/nr)*2 & pop_nreg<max_n3 & no_neb_dum==0)[
+        order(pop_nreg[which(ar_nreg<(tot_ar/nr)*2 & pop_nreg<max_n3 & no_neb_dum==0)])]){
+        neb_l<-list()
+        for(kk in 1:length(re[[i]])){  neb_l[[kk]]<-unlist(neigbs2[[re[[i]][kk]]])   }
+        neb_v<-unique(unlist(neb_l))
+        if(length(neb_v)==0){next}
+        else{
+          pomos1<-neb_v[which(sf_POPULATION[neb_v]==max(sf_POPULATION[neb_v]))]
+          re[[i]]<-c(re[[i]],pomos1)
+          for (k in 1:n_r_small){ neigbs2[[k]]<-list(unlist(neigbs2[[k]])[!unlist(neigbs2[[k]]) %in% pomos1])}
+          ar_nreg[i]<-as.numeric(sum(sf_AREA[re[[i]]]))
+          pop_nreg[i]<-as.numeric(sum(sf_POPULATION[re[[i]]]))
+          no_neb_dum<-rep(0,nr);num_neb<-rep(list(NA),nr)
+          for(i in 1:nr) { 
+            for(kk in 1:length(re[[i]])){num_neb[[i]][kk]<-length(unlist(neigbs2[[re[[i]][kk]]]))}
+            all_neb[i]<-sum(num_neb[[i]])
+            if(all(unlist(num_neb[[i]])==0)){no_neb_dum[i]<-1}}
+        }
+      }
+      no_neb_dum<-rep(0,nr);num_neb<-rep(list(NA),nr)
+      for(i in 1:nr) { 
+        for(kk in 1:length(re[[i]])){num_neb[[i]][kk]<-length(unlist(neigbs2[[re[[i]][kk]]]))}
+        all_neb[i]<-sum(num_neb[[i]])
+        if(all(unlist(num_neb[[i]])==0)){no_neb_dum[i]<-1}}
+      
+      if(length(which(ar_nreg<(tot_ar/nr)*2 & pop_nreg<max_n3 & no_neb_dum==0))==0){break}
+    }
+    
+    ########################
+    no_neb_dum<-rep(0,nr);num_neb<-rep(list(NA),nr)
+    for(i in 1:nr) { 
+      for(kk in 1:length(re[[i]])){num_neb[[i]][kk]<-length(unlist(neigbs2[[re[[i]][kk]]]))}
+      all_neb[i]<-sum(num_neb[[i]])
+      if(all(unlist(num_neb[[i]])==0)){no_neb_dum[i]<-1}}
+    
+    for (i in 1:nr){ar_nreg[i]<-as.numeric(sum(sf_AREA[re[[i]]]))}
+    for (i in 1:nr){pop_nreg[i]<-as.numeric(sum(sf_POPULATION[re[[i]]]))}
+    
+    ############################################################################
+    set.seed(nseed)
+    repeat{
+      ###order based on population, starting with the region with the smallest number
+      for(i in which(pop_nreg<max_n3 & no_neb_dum==0)){
+        neb_l<-list()
+        for(kk in 1:length(re[[i]])){  neb_l[[kk]]<-unlist(neigbs2[[re[[i]][kk]]])   }
+        neb_v<-unique(unlist(neb_l))
+        if(length(neb_v)==0){next}
+        else{
+          pomos1<-neb_v[which(sf_POPULATION[neb_v]==max(sf_POPULATION[neb_v]))]
+          re[[i]]<-c(re[[i]],pomos1)
+          for (k in 1:n_r_small){ neigbs2[[k]]<-list(unlist(neigbs2[[k]])[!unlist(neigbs2[[k]]) %in% pomos1])}
+          ar_nreg[i]<-as.numeric(sum(sf_AREA[re[[i]]]))
+          pop_nreg[i]<-as.numeric(sum(sf_POPULATION[re[[i]]]))
+          no_neb_dum<-rep(0,nr);num_neb<-rep(list(NA),nr)
+          for(i in 1:nr) { 
+            for(kk in 1:length(re[[i]])){num_neb[[i]][kk]<-length(unlist(neigbs2[[re[[i]][kk]]]))}
+            all_neb[i]<-sum(num_neb[[i]])
+            if(all(unlist(num_neb[[i]])==0)){no_neb_dum[i]<-1}}
+        }
+      }
+      no_neb_dum<-rep(0,nr);num_neb<-rep(list(NA),nr)
+      for(i in 1:nr) { 
+        for(kk in 1:length(re[[i]])){num_neb[[i]][kk]<-length(unlist(neigbs2[[re[[i]][kk]]]))}
+        all_neb[i]<-sum(num_neb[[i]])
+        if(all(unlist(num_neb[[i]])==0)){no_neb_dum[i]<-1}}
+      
+      if(length(which(pop_nreg<max_n3 & no_neb_dum==0))==0){break}
+    }
+    
+    ########################
+    no_neb_dum<-rep(0,nr);num_neb<-rep(list(NA),nr)
+    for(i in 1:nr) { 
+      for(kk in 1:length(re[[i]])){num_neb[[i]][kk]<-length(unlist(neigbs2[[re[[i]][kk]]]))}
+      all_neb[i]<-sum(num_neb[[i]])
+      if(all(unlist(num_neb[[i]])==0)){no_neb_dum[i]<-1}}
+    
+    for (i in 1:nr){ar_nreg[i]<-as.numeric(sum(sf_AREA[re[[i]]]))}
+    for (i in 1:nr){pop_nreg[i]<-as.numeric(sum(sf_POPULATION[re[[i]]]))}
+    
+    
+    
+    
+    ###### Adding the remaining areas to the newly created regions
+    ### Create identifier for regions based on letters
+    bukvi<-vector()
+    for(bi in 1:(length(letters))){for(bj in 1:(length(LETTERS)+1)) {bukvi[bj+length(letters)*(bi-1)]<-paste0(letters[bi],LETTERS[bj-1])}}  
+    bukvi<-bukvi[order(bukvi)]
+    for(i in 1:nr){   sf_Agreg[which(sf_ID %in% re[[i]])]<-bukvi[i]}
+    
+    ### Adding the non-assained regions
+    set.seed(nseed)
+    repeat{
+      no_reg<-which(!sf_Agreg %in% bukvi[1:nr])
+      if(length(no_reg)<1)  {break}
+      else{
+        pomos2<-list(); pomos3<-list(); pomos4<-vector()
+        for(kk in 1:length(no_reg)){
+          pomos2[[kk]]<-unique(unlist(neigbs[[no_reg[kk]]])[!unlist(neigbs[[no_reg[kk]]]) %in% unlist(neigbs2[[no_reg[kk]]])])
+          pomos3[[kk]]<-unique(unlist(pomos2[[kk]][!unlist(pomos2[[kk]]) %in% no_reg]))
+          pomos4[kk]<-length(unlist(unlist(pomos3[[kk]])))
+        }
+        pomosl<-pomos3; pomos5<-vector()
+        for(ik in which(pomos4!=0)){
+          for(il in 1:length(pomos3[[ik]])){
+            if(pop_nreg[which(bukvi==sf_Agreg[unlist(pomos3[[ik]][il])])]>=(tot_pop/nr)){
+              pomosl[[ik]]<-pomosl[[ik]][!pomos3[[ik]] %in% pomos3[[ik]][il]]
+              pomosl[[ik]]<-pomosl[[ik]][!is.na(pomosl[[ik]])]
+            }}
+        }
+        for(kk in 1:length(no_reg)){pomos5[kk]<-length(unlist(unlist(pomosl[[kk]])))}
+        
+        if(length(which(pomos5!=0))>0){
+          pomos6<-as.numeric(sample(as.character(which(pomos5!=0)),1))
+          pom4<-as.numeric(sample(as.character(pomosl[[pomos6]]),1))}
+        else{
+          pomos6<-as.numeric(sample(as.character(which(pomos4!=0)),1))
+          pom5<-vector()
+          for(im in 1:length(pomos3[[pomos6]])){  pom5[im]<-pop_nreg[which(bukvi==sf_Agreg[pomos3[[pomos6]][im]])]}
+          pom4<-pomos3[[pomos6]][which(pom5==min(pom5))][1]
+        }
+        
+        sf_Agreg[no_reg[pomos6]]<-sf_Agreg[pom4]
+        for (k in 1:n_r_small){ neigbs2[[k]]<-list(unlist(neigbs2[[k]])[!unlist(neigbs2[[k]]) %in% no_reg[pomos6]])}
+      }
+    }
+    
+    
+    ar_nreg<-rep(NA,nr)
+    for (i in 1:nr){ar_nreg[i]<-as.numeric(sum(sf_AREA[which(sf_Agreg==bukvi[i])]))}
+    pop_nreg<-rep(NA,nr)
+    for (i in 1:nr){pop_nreg[i]<-as.numeric(sum(sf_POPULATION[which(sf_Agreg==bukvi[i])]))}
+    ###################################################################################
+    ###################################################
+    ###############################
+    mun_small_id<-vector()
+    for(ij in 1:n_r_small) {mun_small_id[ij]<-which(sf_Agreg[ij]==bukvi)}
+    
+    mdis<-maptools::unionSpatialPolygons(sf_mun_polyg,mun_small_id) 
+    
+    
+    ##################################################
+    #####remove unnecesary variables from workspace
+    #####################################################################################
+    rm(neb_l,num_neb,
+       sf_mun_polyg,all_neb,frstm,i,im,k,kk,pom0,pomos1,
+       large_pop_mun,min_kreis,n_reg,n_reg2,no_neb_dum,
+       sf_gname,sf_lauc,sf_ID,
+       r_p1,r_p2,bi,bj,neb_v,no_reg,
+       neigbs,neigbs2,max_n3
+    )
+    rm(re,n_r_small)
+    ###############################################################################################
+    mdis_lonlat<-spTransform(mdis,"+init=epsg:4326")
+    k_cen<-gCentroid(mdis_lonlat,byid = TRUE)
+    k_poi<-k_cen@coords
+    library(geosphere)
+    dist_cen<-distm(k_poi)
+    rm(k_poi,k_cen,mdis_lonlat)
+    ######
+    library("spdep")
+    ngbrs<-poly2nb(mdis)
+    
+    
+    
+    ######################################################
+    rez<-list(nseed,mdis);   names(rez)<-c("nseed","mdis")
+    varbl<-list(ar_nreg,pop_nreg,mun_small_id,dist_cen,ngbrs); names(varbl)<-c("sf_ar","sf_pop","mun_small_id","dist_cen","ngbrs")
+    other_var<-list(nr,tot_pop,tot_ar,tot_ar_m2,sf_AREA,sf_POPULATION,sf_Agreg)
+    names(other_var)<-c("nr","tot_pop","tot_ar","tot_ar_m2","sf_AREA","sf_POPULATION","sf_Agreg")
+    all_rez<-list(rez,varbl,other_var)
+    names(all_rez)<-c("rez","varbl","other_var")
+    
+    rm(mdis,ngbrs,dist_cen,rez,varbl,other_var)
+    
+    return(all_rez)
+  }
+}
+
+save.image("results PAPER I/small_data_regions1000.Rdata")
+
+for(ii in 1:length(out)){
+  for(ij in 1:length(out[[ii]])){
+    out[[ii]][[ij]]$other_var<-NULL
+  }}
+
+rm(ii,ij,sds,sds1)
+
+save.image("results PAPER I/small_data_regions1000_2.Rdata")
+
+for(ii in 1:length(out)){
+  for(ij in 1:length(out[[ii]])){
+    out[[ii]][[ij]]$rez<-NULL
+  }}
+
+rm(ii,ij)
+
+save.image("results PAPER I/small_data_regions1000_3.Rdata")

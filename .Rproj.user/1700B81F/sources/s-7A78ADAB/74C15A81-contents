@@ -1,0 +1,6 @@
+
+#library("rgdal")
+#ger<-readOGR(dsn="C:/Users/Rozeta/Desktop/R PACKAGE/SDPDmod/SDPDmod/inst/shape",layer="GermanyNUTS3")
+library(sf)
+sf_gr <- read_sf("C:/Users/Rozeta/Desktop/R PACKAGE/SDPDmod/SDPDmod/inst/shape/GermanyNUTS3.shp")
+pop<-read.csv2(paste0("C:/Users/Rozeta/Desktop/R PACKAGE/populationNUTS3.csv"),sep=",", colClasses = "character")

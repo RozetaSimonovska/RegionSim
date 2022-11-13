@@ -1,0 +1,79 @@
+
+popDistMat<-function(distMat, POPvec,
+                     distCutOff=NULL, maxdistCutOff=NULL,
+                     POPCutOff=NULL,  rn=FALSE){
+  if (isSymmetric(distMat) & all(diag(distMat) == 0)) {
+
+    n <- nrow(distMat)
+    if(length(POPvec)==n){
+
+      W <- matrix(0, nrow = n, ncol = n); W1 <- matrix(0, nrow = n, ncol = n)
+      for(i in 1:n){  W1[i,which(distMat[i,]!=0 & distMat[i,]<maxdistCutOff)]<-1 }
+      for(i in 1:n){
+        W[i,which(W1[i,]!=0 & distMat[i,]<distCutOff)]<-1
+        W[i,which(W1[i,]!=0 & W[i,]==0 & POPvec>POPCutOff )]<-1  }
+
+    } else{
+      stop("Error in POPvec! Different lengths of distance matrix and Population vector.")
+    }
+  } else {
+    stop("Error in distMat! Not a distance matrix.")
+  }
+
+  if(rn){ W<-rownor(W) }
+  return(W)
+
+}
+
+
+
+ger<-readOGR(dsn="C:/Users/Rozeta/Desktop/R PACKAGE/SDPDmod/SDPDmod/inst/shape",layer="GermanyNUTS3")
+load("C:/Users/Rozeta/Desktop/R PACKAGE/SDPDmod/SDPDmod/data/gN3dist.rda")
+dist2 <- gN3dist/1000
+pop <- as.numeric(ger$population)
+W3 <- popDistMat(dist2,POPvec=pop,maxdistCutOff = 150,distCutOff = 80,POPCutOff = 500000)
+plot(ger, col=W3[200,])
+
+
+
+
+popDistMat2<-function(distMat, POPvec,
+                     distCutOff=NULL, maxdistCutOff=NULL, distCutOff2=NULL,
+                     POPCutOff=NULL, POPCutOff2=NULL, POPCutOff3=NULL, rn=FALSE){
+  if (isSymmetric(distMat) & all(diag(distMat) == 0)) {
+
+    n <- nrow(distMat)
+    if(length(POPvec)==n){
+
+
+      if(is.null(maxdistCutOff)){maxdistCutOff <- max(distMat)/2 }
+      if(is.null(distCutOff)){distCutOff <- maxdistCutOff/2 }
+      if(is.null(POPCutOff)){POPCutOff <- max(POPvec)/2 }
+
+      if(is.null(distCutOff2) & is.null(POPCutOff2) & maxdistCutOff<distCutOff){
+        stop("Wrong values for distance or population restrictions! \n
+             Enter maxdistCutOff>distCutOff2")
+      }else if(!is.null(distCutOff2) & !is.null(POPCutOff2) &
+               (maxdistCutOff<distCutOff || distCutOff2<distCutOff || distCutOff2>maxdistCutOff || POPCutOff<POPCutOff2)){
+        stop("Wrong values for distance or population restrictions! \n  Enter maxdistCutOff>distCutOff2>distCutOff and POPCutOff>POPCutOff2")
+      }
+
+      W <- matrix(0, nrow = n, ncol = n); W1 <- matrix(0, nrow = n, ncol = n)
+      for(i in 1:n){  W1[i,which(distMat[i,]!=0 & distMat[i,]<maxdistCutOff)]<-1 }
+      for(i in 1:n){
+        W[i,which(W1[i,]!=0 & distMat[i,]<distCutOff)]<-1
+        W[i,which(W1[i,]!=0 & W[i,]==0 & POPvec>POPCutOff )]<-1  }
+      if(!is.null(distCutOff2) & !is.null(POPCutOff2)){
+        W[i,which(W1[i,]!=0 & distMat[i,]<distCutOff2 & POPvec[i]<POPCutOff2 & POPvec>POPCutOff3)]<-1 }
+
+      } else{
+        stop("Error in POPvec! Different lengths of distance matrix and Population vector.")
+      }
+} else {
+  stop("Error in distMat! Not a distance matrix.")
+}
+
+  if(rn){ W<-rownor(W) }
+  return(W)
+
+}

@@ -1,0 +1,52 @@
+rm(list=ls())
+
+setwd("C:/Users/Rozeta/Documents/GitHub/SDPDmod")
+library(devtools)
+library("roxygen2")
+
+#use_gpl_license(version = 3, include_future = TRUE)
+#usethis::use_version()
+#usethis::use_news_md()
+
+# devtools::install_deps()
+# devtools::run_examples()
+
+document()
+check()
+build()
+
+load_all()
+
+install()
+
+# build_manual()
+
+
+devtools::check_win_release()
+
+# rhub::validate_email(email="simonovska.r@gmail.com")
+# results <-rhub::check_for_cran()
+# usethis::use_cran_comments()
+# usethis::use_github_action_check_standard()
+devtools::check_win_devel()
+#usethis::use_travis()
+# rhub::check_on_linux()
+
+# devtools::spell_check()
+# goodpractice::gp()
+#remotes::install_github("jumpingrivers/inteRgrate")
+# inteRgrate::check_pkg()
+# inteRgrate::check_lintr()
+# inteRgrate::check_tidy_description()
+# #usethis::use_tidy_description()
+# inteRgrate::check_r_filenames()
+# inteRgrate::check_gitignore()
+
+##devtools::test()
+#devtools::test_coverage()
+# cv<-covr::package_coverage(type="all")
+# covr::codecov(coverage = cv,token = "CODECOV_TOKEN=1fae9bd6-a066-4ee0-9798-8f1f8460ed8c")
+#covr::codecov(token = "1fae9bd6-a066-4ee0-9798-8f1f8460ed8c")
+
+devtools::release()
+devtools::submit_cran()
