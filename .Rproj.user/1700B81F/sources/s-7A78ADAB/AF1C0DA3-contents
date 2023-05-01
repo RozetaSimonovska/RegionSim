@@ -1,8 +1,0 @@
-#' @name  gN3dist
-#' Distance between centroids of NUTS3 regions in Germany
-#'
-#' @docType data
-#'
-#' @example
-#' data(gN3dist)
-

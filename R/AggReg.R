@@ -13,7 +13,7 @@
 #' @param neigbs neighbors list
 #' @param cen_dist centroid distances
 #' @param n_reg vector of indexes for the regions which will be used to choose the starting n points, default NULL, which means all regional unis from sf_pol will be used
-#' @param outpv Variables included in output. Default = FALSE, only provides a spatial polygon of the aggregated regions. If TRUE, additional variables are included (the population and area of the new regions)
+#' @param outpv variables included in output. Default = FALSE, only provides a spatial polygon of the aggregated regions. If TRUE, additional variables are included (the population and area of the new regions)
 #' @param nopoprist Logical. If there should be no population restrictions
 #' @param onebyone Logical. I remaining regional units at the end should be added one by one
 #' @param repuntilmin Logical. If for minimum population condition has to be fulfilled for all newly created regions
@@ -29,20 +29,24 @@
 #' @import dplyr
 #'
 #' @references
-#' Simonovska R., & Tafenau E. (2022). Are the spatial scale and shape relevant in the estimation of agglomeration effects? A study on Germany
+#' Simonovska R., & Tafenau E. (2023). Are the spatial scale and shape relevant in the estimation of agglomeration effects? A study on Germany
 #'
 #' @seealso \code{\link{asgn_nbs}}
 #'
 #' @examples
 #' library("RegionSim")
 #' library("sf")
-#' ger<-st_read(system.file(dsn = "shape/kreise.shp", package = "RegionSim"))
+#' gerNUTS3<-st_read(system.file(dsn = "shape/kreise.shp", package = "RegionSim"))
 #'
-#' simn1<-Aggreg(ger,n = 16,
-#'               popvec = ger$popNUTS3,
-#'               areavec = ger$areaNUTS3,
-#'               minpop = 678750, maxpop = 7000000,
-#'               nopoprist = TRUE, onebyone = FALSE)
+#' simN2<-Aggreg(gerNUTS3,
+#'               n = 38,
+#'               popvec = gerNUTS3$popNUTS3,
+#'               areavec = gerNUTS3$areaNUTS3,
+#'               minpop = 678750,
+#'               maxpop = 7000000,
+#'               nopoprist = TRUE,
+#'               onebyone = FALSE)
+#' plot(simN2)
 #'
 #' @export
 
@@ -758,7 +762,7 @@ Aggreg<-function(sf_pol=NULL, n, nseed = 12345,
   new_reg_id<-vector()
   for(ij in 1:m) {new_reg_id[ij]<-which(sf_Agreg[ij]==letters_vec)}
 
-  poly <-  sf_pol  ##sf::st_buffer(sf_pol, dist=1)
+  poly <-  sf::st_buffer(sf_pol, dist=1000)
   poly$id <- new_reg_id
   newreg<- poly %>% dplyr::select(id) %>%
     dplyr::group_by(id)  %>% dplyr::summarise()
@@ -767,7 +771,9 @@ Aggreg<-function(sf_pol=NULL, n, nseed = 12345,
 
   ######################################################
   if(outpv){
-    varbl<-list(ar_nreg,pop_nreg,new_reg_id,nseed); names(varbl)<-c("sf_ar","sf_pop","new_reg_id","nseed")
+    varbl<-list(ar_nreg, pop_nreg, new_reg_id, nseed)
+    names(varbl)<-c("sf_ar","sf_pop","new_reg_id","nseed")
+
     all_rez<-list(newreg,varbl)
     names(all_rez)<-c("newreg","varbl")
 

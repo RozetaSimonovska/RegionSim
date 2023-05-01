@@ -17,7 +17,7 @@
 #' @examples
 #' library("sf")
 #' ger <- st_read(system.file(dsn = "shape/gemeinde.shp", package = "RegionSim"))
-#' cen_sf <- st_centroid(ger$geometry,of_largest_polygon = TRUE)
+#' cen_sf <- st_centroid(ger$geometry, of_largest_polygon = TRUE)
 #' cen_d <- st_distance(cen_sf)
 #' library("units")
 #' mun_cen_dist <- drop_units(cen_d)/1000
@@ -29,7 +29,8 @@
 
 asgn_nbs<-function(neigbs, cen_dist, k){
   m<-length(neigbs)
-  if(length(neigbs)!=nrow(cen_dist)){stop("Length of neibgbours list and distance matrix do not match!")}
+  if(length(neigbs)!=nrow(cen_dist)){
+    stop("Length of neibgbours list and distance matrix do not match!")}
   ##### finding regions with no neighbors
   a1<-vector(); for(i in 1:m){a1[i]<-length(neigbs[[i]])}
   a2<-which(a1==1)
@@ -40,7 +41,8 @@ asgn_nbs<-function(neigbs, cen_dist, k){
     for(i in a4){
       vec<-c()
       for(j in 1:k){
-        vec<-c(vec,which(cen_dist[i,]==cen_dist[i,which(cen_dist[i,]!=0)][order(cen_dist[i,which(cen_dist[i,]!=0)])][j]))
+        vec<-c(vec,which(cen_dist[i,]==cen_dist[i,which(cen_dist[i,]!=0)][
+          order(cen_dist[i,which(cen_dist[i,]!=0)])][j]))
       }
       vec2<-vec[1:k]
       vec3<-vec2[order(vec2)]
@@ -51,7 +53,8 @@ asgn_nbs<-function(neigbs, cen_dist, k){
      for(j in 1:k){
        if(all(unlist(neigbs[[vec2[j]]]))==0){
          neigbs[[vec2[j]]]<-as.vector(i)
-       }else{  neigbs[[vec2[[j]]]]<-as.vector(unique(unlist(c(unlist(neigbs[[vec2[j]]]),i)))) }
+       }else{  neigbs[[vec2[[j]]]]<-as.vector(unique(unlist(c(
+         unlist(neigbs[[vec2[j]]]),i)))) }
      }
     }
   }

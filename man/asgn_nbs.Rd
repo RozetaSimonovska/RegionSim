@@ -22,7 +22,7 @@ Assign k neigbors for regions without neighbors to a neighbors list, based on ce
 \examples{
 library("sf")
 ger <- st_read(system.file(dsn = "shape/gemeinde.shp", package = "RegionSim"))
-cen_sf <- st_centroid(ger$geometry,of_largest_polygon = TRUE)
+cen_sf <- st_centroid(ger$geometry, of_largest_polygon = TRUE)
 cen_d <- st_distance(cen_sf)
 library("units")
 mun_cen_dist <- drop_units(cen_d)/1000

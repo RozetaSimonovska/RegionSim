@@ -43,7 +43,7 @@ Aggreg(
 
 \item{n_reg}{vector of indexes for the regions which will be used to choose the starting n points, default NULL, which means all regional unis from sf_pol will be used}
 
-\item{outpv}{Variables included in output. Default = FALSE, only provides a spatial polygon of the aggregated regions. If TRUE, additional variables are included (the population and area of the new regions)}
+\item{outpv}{variables included in output. Default = FALSE, only provides a spatial polygon of the aggregated regions. If TRUE, additional variables are included (the population and area of the new regions)}
 
 \item{nopoprist}{Logical. If there should be no population restrictions}
 
@@ -60,17 +60,21 @@ Given \emph{m} smaller regional units aggregate them into \emph{n} regions based
 \examples{
 library("RegionSim")
 library("sf")
-ger<-st_read(system.file(dsn = "shape/kreise.shp", package = "RegionSim"))
+gerNUTS3<-st_read(system.file(dsn = "shape/kreise.shp", package = "RegionSim"))
 
-simn1<-Aggreg(ger,n = 16,
-              popvec = ger$popNUTS3,
-              areavec = ger$areaNUTS3,
-              minpop = 678750, maxpop = 7000000,
-              nopoprist = TRUE, onebyone = FALSE)
+simN2<-Aggreg(gerNUTS3,
+              n = 38,
+              popvec = gerNUTS3$popNUTS3,
+              areavec = gerNUTS3$areaNUTS3,
+              minpop = 678750,
+              maxpop = 7000000,
+              nopoprist = TRUE,
+              onebyone = FALSE)
+plot(simN2)
 
 }
 \references{
-Simonovska R., & Tafenau E. (2022). Are the spatial scale and shape relevant in the estimation of agglomeration effects? A study on Germany
+Simonovska R., & Tafenau E. (2023). Are the spatial scale and shape relevant in the estimation of agglomeration effects? A study on Germany
 }
 \seealso{
 \code{\link{asgn_nbs}}
