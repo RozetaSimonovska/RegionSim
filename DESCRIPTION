@@ -1,6 +1,6 @@
 Package: RegionSim
 Title: Region Simulate 
-Version: 0.0.0.9000
+Version: 0.0.1
 Authors@R: 
     person(given = "Rozeta",
            family = "Simonovska",
