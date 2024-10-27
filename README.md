@@ -8,6 +8,8 @@ This R package is used for aggregating m smaller regional units into n regions b
 
 # Installation
 
+library("devtools")
+
 install_github("RozetaSimonovska/RegionSim")
 
 # Citing
