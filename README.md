@@ -12,4 +12,5 @@ install_github("RozetaSimonovska/RegionSim")
 
 # Citing
 
-When using please cite: Simonovska R., & Tafenau E. (2023).Are the spatial scale and shape relevant in the estimation of agglomeration effects? A study on Germany.
+When using please cite: 
+Simonovska R., & Tafenau E. (2024). Varying size and shape of spatial units: Analysing the MAUP through agglomeration economies in the case of Germany. REGION, 11(2), 63–97. doi: 10.18335/region.v11i2.530.
